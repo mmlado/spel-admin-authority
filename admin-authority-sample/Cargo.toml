@@ -1,0 +1,10 @@
+[package]
+name = "admin-authority-sample"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+admin-authority = { path = "../admin-authority" }
+spel-framework = { path = "../../spel/spel-framework" }
+nssa_core = { git = "https://github.com/logos-blockchain/logos-execution-zone.git", tag = "v0.1.2" }
+serde = { version = "1", features = ["derive"] }
