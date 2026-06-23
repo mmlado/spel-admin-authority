@@ -6,6 +6,7 @@ mod admin_authority_sample {
     use super::*;
 
     #[instruction]
+    #[require_admin]
     pub fn update_value(
         #[account(pda = literal("admin_config"))] admin_config: AccountWithMetadata,
         #[account(mut, pda = literal("program_config"))] mut config: AccountWithMetadata,
