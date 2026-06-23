@@ -59,6 +59,8 @@ pub enum AdminError {
     EncodingFailed,
     /// Borsh decoding of `AdminConfig` failed.
     DecodingFailed,
+    /// Error in writing data
+    AccountDataTooLarge,
 }
 
 impl core::fmt::Display for AdminError {
@@ -73,7 +75,14 @@ impl core::fmt::Display for AdminError {
             AdminError::CandidateMismatch => write!(f, "candidate address mismatch"),
             AdminError::EncodingFailed => write!(f, "AdminConfig encoding failed"),
             AdminError::DecodingFailed => write!(f, "AdminConfig decoding failed"),
+            AdminError::AccountDataTooLarge => write!(f, "AdminConfig too large for account data"),
         }
+    }
+}
+
+impl From<AdminError> for SpelError {
+    fn from(e: AdminError) -> Self {
+        SpelError::Unauthorized { message: e.to_string() }
     }
 }
 
@@ -129,6 +138,12 @@ impl AdminConfig {
     /// Returns `AdminError::NotInitialized` if the account's data is empty.
     pub fn from_account(account: &AccountWithMetadata) -> Result<Self, AdminError> {
         todo!()
+    }
+
+    pub fn write_to(&self, account: &mut AccountWithMetadata) -> Result<(), AdminError> {
+        let bytes = self.encode()?;
+        account.account.data = bytes.try_into().map_err(|_| AdminError::AccountDataTooLarge)?;
+        Ok(())
     }
 }
 
