@@ -5,6 +5,9 @@ edition = "2024"
 
 [dependencies]
 admin-authority = { path = "../admin-authority" }
-spel-framework = { path = "../../spel/spel-framework" }
+spel-framework = { git = "https://github.com/mmlado/spel.git", branch = "feat/admin_authority" }
 nssa_core = { git = "https://github.com/logos-blockchain/logos-execution-zone.git", tag = "v0.1.2" }
 serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+spel-framework-core = { git = "https://github.com/mmlado/spel.git", branch = "feat/admin_authority", features = ["idl-gen"] }

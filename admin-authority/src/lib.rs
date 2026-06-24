@@ -7,10 +7,14 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use spel_framework::prelude::*;
 
+pub use admin_authority_macros::{admin_authority, instruction, require_admin};
+
+extern crate self as admin_authority;
+
 /// Transfer-time argument describing the intended new admin.
 ///
 /// Paired with `new_admin_account: AccountWithMetadata` at every transfer.
-/// `AdminCandidate` is the claim; `AccountWithMetadata` is the chain-state
+/// `AdminCandidate` is the claim, `AccountWithMetadata` is the chain-state
 /// evidence. One without the other provides no security guarantee.
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum AdminCandidate {
@@ -27,18 +31,16 @@ pub enum AdminCandidate {
 ///
 /// Stored in the program's Config PDA at `(program_id, "admin_config")`.
 /// Created once via `admin_initialize`; cannot be reinitialized.
-/// `admin_authority == AccountId::default()` indicates the renounced state.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq, Eq)]
+/// `admin == AccountId::default()` indicates the renounced state.
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
 pub struct AdminConfig {
     /// Current admin's `AccountId`. `AccountId::default()` means renounced.
-    pub admin_authority: AccountId,
+    pub admin: AccountId,
 }
 
-/// Errors returned by `admin-authority` library methods.
-///
-/// Library methods return `AdminError`. Instruction handlers map these to
-/// `SpelError::Unauthorized` at the SPEL boundary so the library stays
-/// independent of SPEL's error surface.
+/// Errors returned by `admin-authority` library methods. Mapped to
+/// `SpelError::Unauthorized` at the SPEL boundary so the lib stays
+/// independent of the framework's error surface.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AdminError {
     /// Config PDA data is empty; `admin_initialize` has not been called.
@@ -86,75 +88,86 @@ impl From<AdminError> for SpelError {
     }
 }
 
-impl AdminConfig {
-    /// Constructs an initialized `AdminConfig`.
-    ///
-    /// Rejects `AccountId::default()` as the admin (reserved for renounced state).
-    pub fn initialize(admin: AccountId) -> Result<Self, AdminError> {
-        todo!()
+/// Creates the admin Config PDA and sets the first admin.
+///
+/// Must be called once per program deployment. Re-initialization is rejected
+/// automatically by `#[account(init)]`. The Config PDA does not exist until
+/// this instruction lands, so any caller can win the race during the
+/// initialization window; deployers should bundle this call with deployment.
+///
+/// `new_admin` declares the intended admin; `new_admin_account` is the
+/// chain-state evidence the candidate is real. For self-election, the caller
+/// passes `AdminCandidate::Signer` with their own account.
+#[instruction]
+pub fn admin_initialize(
+    #[account(init, pda = literal("admin_config"))] mut config: AccountWithMetadata,
+    #[account(signer)] caller: AccountWithMetadata,
+    new_admin_account: AccountWithMetadata,
+    new_admin: ::admin_authority::AdminCandidate,
+) -> SpelResult { todo!() }
+
+/// Replaces the current admin with a new signer or PDA.
+///
+/// Only the current admin can call. The new admin is described by the
+/// `AdminCandidate` and validated against `new_admin_account`. After this
+/// transaction lands, the previous admin can no longer call gated
+/// instructions.
+#[instruction]
+pub fn admin_transfer(
+    #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
+    #[account(signer)] caller: AccountWithMetadata,
+    new_admin_account: AccountWithMetadata,
+    new_admin: ::admin_authority::AdminCandidate,
+) -> SpelResult { todo!() }
+
+/// Permanently zeros the admin in the Config PDA.
+///
+/// Only the current admin can call. Writes `AccountId::default()` to the
+/// Config PDA, blocking all future admin-gated instructions. Terminal,
+/// there is no recovery path by design.
+#[instruction]
+pub fn admin_renounce(
+    #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
+    #[account(signer)] caller: AccountWithMetadata,
+) -> SpelResult { todo!() }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admin_error_display_strings() {
+        assert_eq!(AdminError::NotInitialized.to_string(),    "admin authority not initialized");
+        assert_eq!(AdminError::Renounced.to_string(),         "admin authority renounced");
+        assert_eq!(AdminError::NotAdmin.to_string(),          "signer is not the current admin");
+        assert_eq!(AdminError::MissingSignature.to_string(),  "admin signature missing");
+        assert_eq!(AdminError::InvalidCandidate.to_string(),  "invalid admin candidate");
+        assert_eq!(AdminError::UndeployedPda.to_string(),     "candidate PDA is not deployed");
+        assert_eq!(AdminError::CandidateMismatch.to_string(), "candidate address mismatch");
+        assert_eq!(AdminError::EncodingFailed.to_string(),    "AdminConfig encoding failed");
+        assert_eq!(AdminError::DecodingFailed.to_string(),    "AdminConfig decoding failed");
+        assert_eq!(AdminError::AccountDataTooLarge.to_string(), "AdminConfig too large for account data");
     }
 
-    /// Transfers admin authority to a new account.
-    ///
-    /// Validates `current` is the stored admin, then validates `candidate`
-    /// against `new_account` and overwrites `admin_authority`.
-    pub fn transfer(
-        &mut self,
-        current: &AccountWithMetadata,
-        candidate: AdminCandidate,
-        new_account: &AccountWithMetadata,
-    ) -> Result<(), AdminError> {
-        todo!()
+    #[test]
+    fn admin_error_maps_to_unauthorized() {
+        let spel: SpelError = AdminError::NotAdmin.into();
+        match spel {
+            SpelError::Unauthorized { message } => {
+                assert_eq!(message, "signer is not the current admin");
+            }
+            other => panic!("expected Unauthorized, got {other:?}"),
+        }
     }
 
-    /// Permanently renounces admin authority.
-    ///
-    /// Zeros `admin_authority` to `AccountId::default()`. Terminal.
-    pub fn renounce(&mut self, current: &AccountWithMetadata) -> Result<(), AdminError> {
-        todo!()
-    }
-
-    /// Asserts the supplied signer is the current admin.
-    ///
-    /// Called by the `#[require_admin]` validator prologue. Checks: not
-    /// renounced, `signer.account_id == admin_authority`,
-    /// `signer.is_authorized == true`.
-    pub fn assert_admin(&self, signer: &AccountWithMetadata) -> Result<(), AdminError> {
-        todo!()
-    }
-
-    /// Borsh-encodes the state for storage in the Config PDA.
-    pub fn encode(&self) -> Result<Vec<u8>, AdminError> {
-        todo!()
-    }
-
-    /// Borsh-decodes the state from a byte slice.
-    pub fn decode(data: &[u8]) -> Result<Self, AdminError> {
-        todo!()
-    }
-
-    /// Decodes the state from an `AccountWithMetadata`.
-    ///
-    /// Returns `AdminError::NotInitialized` if the account's data is empty.
-    pub fn from_account(account: &AccountWithMetadata) -> Result<Self, AdminError> {
-        todo!()
-    }
-
-    pub fn write_to(&self, account: &mut AccountWithMetadata) -> Result<(), AdminError> {
-        let bytes = self.encode()?;
-        account.account.data = bytes.try_into().map_err(|_| AdminError::AccountDataTooLarge)?;
-        Ok(())
-    }
-}
-
-impl AdminCandidate {
-    /// Validates the candidate against the supplied account.
-    ///
-    /// Returns the resolved `AccountId` to store as `admin_authority`.
-    pub fn validate_with_account(
-        &self,
-        account: &AccountWithMetadata,
-    ) -> Result<AccountId, AdminError> {
-        todo!()
+    #[test]
+    fn admin_error_renounced_maps_to_unauthorized_with_message() {
+        let spel: SpelError = AdminError::Renounced.into();
+        match spel {
+            SpelError::Unauthorized { message } => {
+                assert_eq!(message, "admin authority renounced");
+            }
+            other => panic!("expected Unauthorized, got {other:?}"),
+        }
     }
 }

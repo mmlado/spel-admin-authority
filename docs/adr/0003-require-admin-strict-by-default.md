@@ -2,6 +2,8 @@
 
 `#[require_admin]` emits a `compile_error!` if the annotated instruction does not explicitly declare an `#[account(pda = literal("admin_config"))]` param and an `#[account(signer)]` param. Relaxed mode, in which the macro auto-injects `__admin_config` and `__admin_signer` if absent, is opt-in via `SPEL_ADMIN_AUTHORITY_RELAXED=1` at build time. The proc macro reads the variable with `std::env::var` at expansion time.
 
+The macro lives in `admin-authority-macros` (not in `spel-framework-macros`). The framework is library-agnostic and discovers the marker attribute name through `[package.metadata.spel.instruction_attrs]` in admin-authority's `Cargo.toml`. Shape validation logic stays library-owned for the same reason: the rule "admin_config PDA param + signer param" is admin-authority's contract, not the framework's.
+
 ## Considered Options
 
 **1. Always strict (no relaxed mode).**

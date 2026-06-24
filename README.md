@@ -4,10 +4,11 @@ Single-admin authority primitive for LEZ programs. Provides a standardised way t
 
 ## What it does
 
-A program adds `#[admin_authority]` at the module level and `#[require_admin]` on each instruction it wants gated. The macros inject the three management instructions (`admin_initialize`, `admin_transfer`, `admin_renounce`) and emit a runtime check on each gated instruction that confirms the caller is the current admin.
+A program adds `#[admin_authority]` at the module level and `#[require_admin]` on each instruction it wants gated. The library ships the three management instructions (`admin_initialize`, `admin_transfer`, `admin_renounce`), and the framework discovers them at compile time via metadata declared in the library's `Cargo.toml`. `#[require_admin]` emits a runtime check on each gated instruction confirming the caller is the current admin.
 
 ```rust
 use spel_framework::prelude::*;
+use admin_authority::{admin_authority, require_admin};
 
 #[lez_program]
 #[admin_authority]
@@ -20,12 +21,12 @@ mod my_program {
         #[account(signer)] caller: AccountWithMetadata,
         new_value: u64,
     ) -> SpelResult {
-        // handler body. The admin check has already run in the generated validator.
+        // handler body. The admin check has already run.
     }
 }
 ```
 
-Adding `#[admin_authority]` to the module produces three new instructions in the IDL:
+Adding `#[admin_authority]` to the module exposes three new instructions in the IDL:
 
 - `admin_initialize` creates the Config PDA and sets the first admin.
 - `admin_transfer` replaces the current admin with a new one.
@@ -37,18 +38,34 @@ Adding `#[require_admin]` to any instruction inserts a check that decodes the ad
 
 | Crate | Purpose |
 |---|---|
-| [`admin-authority`](admin-authority/) | Library: `AdminConfig`, `AdminCandidate`, `AdminError`, and the auth methods called by the macro-generated code. |
+| [`admin-authority`](admin-authority/) | Runtime library: `AdminConfig`, `AdminCandidate`, `AdminError`, the auth methods, and the three management instruction fns. Declares the discovery metadata. |
+| [`admin-authority-macros`](admin-authority-macros/) | Proc-macro sub-crate: `#[admin_authority]` (marker), `#[require_admin]` (shape validator + body injector). Re-exported through `admin-authority`. |
 | [`admin-authority-sample`](admin-authority-sample/) | Reference SPEL program that uses both macros end to end. |
 
-The macros are part of [`logos-co/spel`](https://github.com/logos-co/spel) (`spel-framework-macros` and `spel-framework-core::admin_authority`). The library and samples live here.
+## Architecture
+
+Framework knows nothing specific about admin-authority. Generic extension scanner in `spel-framework-core::idl_gen` walks path-deps looking for `[package.metadata.spel]` declarations:
+
+```toml
+# admin-authority/Cargo.toml
+[package.metadata.spel]
+extension_attr = "admin_authority"
+instruction_attrs = ["require_admin"]
+```
+
+When the consumer's `#[lez_program]` module carries `#[admin_authority]`, the scanner reads admin-authority's `src/lib.rs` for `#[instruction]`-annotated fns and merges them into the consumer's dispatcher + IDL with cross-crate call paths (`::admin_authority::admin_initialize(...)`). Same mechanism powers any future extension (e.g. `freeze-authority`); no framework PR needed per library.
 
 ## Adding as a dependency
 
 ```toml
 [dependencies]
 admin-authority = { git = "https://github.com/mmlado/spel-admin-authority" }
-spel-framework  = { git = "https://github.com/logos-co/spel" }
+spel-framework  = { git = "https://github.com/mmlado/spel", branch = "feat/admin_authority" }
 ```
+
+`admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly.
+
+(The `spel-framework` URL points at the fork branch carrying the generic extension scanner. Will move to `logos-co/spel` once the upstream PR merges.)
 
 ## Integration steps
 

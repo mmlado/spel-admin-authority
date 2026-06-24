@@ -1,5 +1,5 @@
 [workspace]
-members = ["admin-authority","admin-authority-sample"]
+members = ["admin-authority", "admin-authority-macros","admin-authority-sample"]
 resolver = "2"
 
 [workspace.package]

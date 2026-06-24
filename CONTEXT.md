@@ -48,8 +48,16 @@ Opt-in build-time behavior enabled by `SPEL_ADMIN_AUTHORITY_RELAXED=1`. The macr
 _Avoid_: treating relaxed as the default
 
 **Injected instructions**:
-The three instructions synthesized into a consumer's module by `#[admin_authority]`: `admin_initialize`, `admin_transfer`, `admin_renounce`. They appear in the IDL and are callable via SPEL CLI. Source lives as `quote!` templates inside `expand_lez_program()`, not in consumer source files.
-_Avoid_: "generated functions" (implies they exist as source); "admin_init" or "init_admin" (wrong prefix/suffix convention)
+The three instructions added to a consumer's module by `#[admin_authority]`: `admin_initialize`, `admin_transfer`, `admin_renounce`. They appear in the IDL and are callable via SPEL CLI. Source lives as real `#[instruction] fn` definitions in `admin-authority/src/lib.rs`; the framework discovers them via a path-dep scan triggered by the `#[admin_authority]` marker and emits cross-crate dispatch calls (`::admin_authority::admin_initialize(...)`) into the consumer's binary. They never exist as copy-pasted source in the consumer module.
+_Avoid_: "generated functions" (implies they exist as source in the consumer); "synthesized templates" (was true pre-pivot, no longer accurate); "admin_init" or "init_admin" (wrong prefix/suffix convention)
+
+**Extension attr (framework discovery mechanism)**:
+The trigger by which the SPEL framework discovers a third-party library's instructions. Each extension library declares its marker attribute name in `[package.metadata.spel.extension_attr]` in its `Cargo.toml`. When a consumer's `#[lez_program]` module carries that attribute, the framework scans the library's `src/lib.rs` for `#[instruction]`-annotated fns and includes them in the consumer's dispatcher + IDL. `admin-authority` declares `extension_attr = "admin_authority"`, so `#[admin_authority]` on a consumer mod triggers the scan. Framework is library-agnostic; the same mechanism powers any future extension (e.g. `freeze-authority`).
+_Avoid_: "plugin", "hook" (imply runtime registration; this is compile-time discovery)
+
+**admin-authority-macros (sub-crate)**:
+Proc-macro crate that ships alongside the `admin-authority` library. Provides `#[admin_authority]` (marker, pass-through), `#[require_admin]` (shape validator + runtime check), and an internal `#[instruction]` shim that strips `#[account(...)]` helper attrs so the library's own source compiles in isolation. Required because attribute macros must live in a `proc-macro = true` crate, separate from the runtime library.
+_Avoid_: "macros crate" (too generic); merging into `admin-authority` (cannot, proc-macro crates can't export non-macro items)
 
 ## Relationships
 
