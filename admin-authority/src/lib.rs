@@ -32,6 +32,7 @@ pub enum AdminCandidate {
 /// Stored in the program's Config PDA at `(program_id, "admin_config")`.
 /// Created once via `admin_initialize`; cannot be reinitialized.
 /// `admin == AccountId::default()` indicates the renounced state.
+#[account_type]
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
 pub struct AdminConfig {
     /// Current admin's `AccountId`. `AccountId::default()` means renounced.
