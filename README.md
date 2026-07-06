@@ -18,9 +18,7 @@ mod my_program {
     #[instruction]
     #[require_admin]
     pub fn update_value(
-        #[account(pda = literal("admin_config"))] admin_config: AccountWithMetadata,
         #[account(mut, pda = literal("program_config"))] mut config: AccountWithMetadata,
-        #[account(signer)] caller: AccountWithMetadata,
         new_value: u64,
     ) -> SpelResult {
         // handler body. From M2, the admin check runs before this.
@@ -28,9 +26,11 @@ mod my_program {
 }
 ```
 
+The gate's two accounts (`admin_config`, the Config PDA, and `caller`, the signer) do not need to be written out. The framework injects them from metadata the library declares, and the expansion is byte-identical to writing them by hand. Declaring them explicitly is also supported and produces the same program, see [ADR-0006](docs/adr/0006-param-injection-and-relaxed-mode.md). With different param names, pass them to the gate: `#[require_admin(config = my_cfg, signer = owner)]`.
+
 Adding `#[admin_authority]` to the module exposes three new instructions in the IDL:
 
-- `admin_initialize` creates the Config PDA and installs the caller as the first admin (self-election, forced by LEZ rejecting duplicate account ids in one transaction).
+- `admin_initialize` creates the Config PDA and installs the caller as the first admin (self-election, see [ADR-0005](docs/adr/0005-self-election-via-caller.md)).
 - `admin_transfer` replaces the current admin with a new one.
 - `admin_renounce` zeros the admin permanently. Terminal.
 
@@ -40,9 +40,10 @@ Adding `#[require_admin]` to an instruction marks it admin-gated: from M2 it ins
 
 | Crate | Purpose |
 |---|---|
-| [`admin-authority`](admin-authority/) | Runtime library: `AdminConfig`, `AdminCandidate`, `AdminError` types and the three management instruction fns (design + stubs at M1, bodies land in M2). Declares the discovery and inject metadata. |
-| [`admin-authority-macros`](admin-authority-macros/) | Proc-macro sub-crate: `#[admin_authority]` (marker), `#[require_admin]` (param-name validator at M1; runtime check injection lands in M2). Re-exported through `admin-authority`. |
-| [`admin-authority-sample`](admin-authority-sample/) | Reference SPEL program that uses both macros end to end. |
+| [`admin-authority`](admin-authority/) | Runtime library: `AdminConfig`, `AdminCandidate`, `AdminError`, the auth methods, and the three management instruction fns. Declares the discovery metadata. |
+| [`admin-authority-macros`](admin-authority-macros/) | Proc-macro sub-crate: `#[admin_authority]` (marker), `#[require_admin]` (injects the runtime admin check at the top of the handler body). Re-exported through `admin-authority`. |
+| [`admin-authority-sample`](admin-authority-sample/) | Reference SPEL program using both macros end to end, with injected gate params. |
+| [`admin-authority-sample-manual`](admin-authority-sample-manual/) | Second reference program showing the manual path: no `#[admin_authority]` marker, self-elect initialize inside the consumer's own handler, hand-written transfer and renounce, fully declared gate params. |
 
 ## Architecture
 
@@ -54,7 +55,11 @@ Framework knows nothing specific about admin-authority. Generic extension scanne
 extension_attr = "admin_authority"
 ```
 
-When the consumer's `#[lez_program]` module carries `#[admin_authority]`, the scanner reads admin-authority's `src/lib.rs` for `#[instruction]`-annotated fns and merges them into the consumer's dispatcher + IDL with cross-crate call paths (`::admin_authority::admin_initialize(...)`). Same mechanism powers any future extension (e.g. `freeze-authority`); no framework PR needed per library.
+When the consumer's `#[lez_program]` module carries `#[admin_authority]`, the scanner reads admin-authority's `src/lib.rs` for `#[instruction]`-annotated fns and merges them into the consumer's dispatcher and IDL with cross-crate call paths (`::admin_authority::admin_initialize(...)`).
+
+The `#[require_admin]` gate check itself needs no metadata. It is an ordinary proc-macro that re-expands on the emitted handler and removes itself, which is how it injects its runtime check ([ADR-0004](docs/adr/0004-require-admin-injection-contract.md)). The gate's account params are a separate concern: the `inject` block above tells the framework what the gate needs, and any gated instruction that omits `admin_config` or `caller` gets them synthesized at expansion time, identically in every IDL producer ([ADR-0006](docs/adr/0006-param-injection-and-relaxed-mode.md)).
+
+The same mechanism powers any future extension such as `freeze-authority`, with no framework PR needed per library.
 
 ## Adding as a dependency
 
@@ -71,15 +76,15 @@ spel-framework  = { git = "https://github.com/mmlado/spel", branch = "feat/admin
 ## Integration steps
 
 1. **Annotate the module** with `#[admin_authority]` after `#[lez_program]`. The three admin instructions appear in the IDL automatically.
-2. **Call `admin_initialize`** immediately after deployment (a LEZ deployment transaction carries no instructions, so bundling is not possible). Anything between deployment and the first `admin_initialize` is the [initialization window](docs/authority-lifecycle.md#initialization-window-risk); whoever calls first becomes admin.
-3. **Gate instructions** by adding `#[require_admin]` and declaring an `admin_config` param and a `caller` (or `signer`) param. The macro refuses to compile if either is missing by name.
+2. **Call `admin_initialize`** immediately after deployment; the caller becomes admin. Bundling with the deploy is not possible on LEZ today (deployment transactions carry no instructions). Anything between deployment and the first `admin_initialize` is the [initialization window](docs/authority-lifecycle.md#initialization-window-risk); whoever calls first becomes admin. Want a different admin? Initialize, then `admin_transfer`.
+3. **Gate instructions** by adding `#[require_admin]`. The `admin_config` and `caller` params are injected automatically. Declaring them yourself is equivalent, and custom names go through the gate's args: `#[require_admin(config = my_cfg, signer = owner)]`.
 4. **Transfer or renounce** via the injected `admin_transfer` and `admin_renounce` instructions. Transfer takes an `AdminCandidate` (signer or PDA) paired with the corresponding `new_admin_account`.
 
 The [authority lifecycle document](docs/authority-lifecycle.md) covers the state machine, validation rules at each transition, and the program-as-admin path through CPI.
 
 ## Security notes
 
-- **Initialization window.** Call `admin_initialize` immediately after deployment. Bundling with the deployment is not possible on LEZ (deployment transactions carry no instructions), so until that call lands, anyone can submit it and become admin.
+- **Initialization window.** Call `admin_initialize` immediately after deployment. Until that call lands, anyone can submit it and become admin. Bundling with the deployment is not possible on LEZ today (deployment transactions carry no instructions), so the window is structural.
 - **Renounce is terminal.** `admin_renounce` writes `AccountId::default()` and that is the end. No recovery path by design.
 - **PDA admins via CPI.** A program-owned PDA can be the admin. The owning program calls the gated instruction via a chained_call and declares its admin PDA in `caller-pda-seeds`; LEZ propagates `is_authorized` to the callee. See the lifecycle doc.
 - **Transfer history.** Not recorded on-chain. The current admin is always readable from the Config PDA; historical transfers require an off-chain indexer.
@@ -87,7 +92,7 @@ The [authority lifecycle document](docs/authority-lifecycle.md) covers the state
 ## Documentation
 
 - [`docs/authority-lifecycle.md`](docs/authority-lifecycle.md): state machine, transitions, validation rules.
-- [`docs/adr/`](docs/adr/): architectural decision records (PDA seed, macro placement, gate design).
+- [`docs/adr/`](docs/adr/): architectural decision records (PDA seed, macro placement, self-election, gate check injection, param injection).
 - [`CONTEXT.md`](CONTEXT.md): domain language used throughout the project.
 
 ## Development

@@ -62,7 +62,6 @@ Path-dep libraries declare themselves in their own `Cargo.toml`:
 ```toml
 [package.metadata.spel]
 extension_attr = "admin_authority"
-instruction_attrs = ["require_admin"]
 ```
 
 When a consumer's `#[lez_program]` module carries `#[admin_authority]`, the framework scans path-deps for matching metadata, parses the matched library's `src/lib.rs` for `#[instruction]` fns, and merges them into the consumer's pipeline with cross-crate dispatcher calls (`::admin_authority::admin_initialize(...)`).
@@ -70,9 +69,7 @@ When a consumer's `#[lez_program]` module carries `#[admin_authority]`, the fram
 The framework helpers live in `spel-framework-core::idl_gen`:
 
 - `read_spel_extension_attr(crate_dir) -> Option<String>`
-- `read_spel_instruction_attrs(crate_dir) -> Vec<String>`
 - `discover_extension_instructions(manifest_dir, mod_attrs) -> Vec<(syn::ItemFn, syn::Path)>`
-- `discover_extension_instruction_attrs(manifest_dir, mod_attrs) -> Vec<String>`
 - `collect_instruction_fns(items) -> Vec<syn::ItemFn>`
 
 Reuses path-dep walking machinery from [PR #180](https://github.com/logos-co/spel/pull/180) (`find_path_dep_dirs`, `collect_items_from_crate_dirs`).
@@ -84,7 +81,7 @@ Reuses path-dep walking machinery from [PR #180](https://github.com/logos-co/spe
 | `expand_lez_program()` | Top-level orchestrator. Parses module items, classifies them, generates the enum, match arms, handlers, validators, and IDL. | Calls `discover_extension_instructions`. Each discovered fn is parsed into `InstructionInfo` with `external_call_path = Some(::<crate>::<fn>)`. |
 | `expand_generate_idl()` | Compile-time IDL generator that powers the `generate_idl!` proc-macro. | Same discovery loop, so IDL JSON emitted by host helper binaries matches the consumer's compiled dispatcher. |
 | `parse_instruction()` | Classifies fn params into `accounts` and `args`, captures attribute metadata into `InstructionInfo`. | Unchanged shape. Called for both user-defined and discovered extension fns. |
-| `generate_handler_fns()` | Emits handler functions verbatim minus macro markers. | Two changes: skips fns with `external_call_path.is_some()` (the body lives in the library); strips attrs listed in the collected `instruction_attrs` to prevent re-expansion of library-owned gate macros. |
+| `generate_handler_fns()` | Emits handler functions verbatim minus macro markers. | One change. It skips fns with `external_call_path.is_some()`, because the body lives in the library. Library-owned gate macros are left in place and re-expand on the emitted handler. |
 | `generate_match_arms()` | Emits dispatcher arms. | Uses `external_call_path` when present; falls back to bare-name local call otherwise. |
 | `InstructionInfo` struct | Per-instruction parsed model. | Gained an `external_call_path: Option<syn::Path>` field. |
 
@@ -113,6 +110,5 @@ The framework owns:
 
 - The path-dep scan loop driven by metadata.
 - Dispatcher and validator codegen, agnostic of which extension produced the instruction.
-- Stripping `instruction_attrs` from emitted handlers so library-owned gate macros don't re-expand.
 
 This split lets new extensions (e.g. RFP-002 freeze-authority) ship without any framework PR.

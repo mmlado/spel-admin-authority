@@ -1,4 +1,10 @@
+---
+status: superseded by ADR-0006
+---
+
 # `#[require_admin]` is strict by default; relaxed mode via env var
+
+> Superseded by [ADR-0006](0006-param-injection-and-relaxed-mode.md). The compile-error shape check and the env var described below were replaced. Strict now means release builds require explicitly declared gate params. Relaxed now means dev-only, metadata-driven param injection by the framework.
 
 `#[require_admin]` emits a `compile_error!` if the annotated instruction does not explicitly declare an `#[account(pda = literal("admin_config"))]` param and an `#[account(signer)]` param. Relaxed mode, in which the macro auto-injects `__admin_config` and `__admin_signer` if absent, is opt-in via `SPEL_ADMIN_AUTHORITY_RELAXED=1` at build time. The proc macro reads the variable with `std::env::var` at expansion time.
 

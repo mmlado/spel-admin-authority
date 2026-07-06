@@ -1,6 +1,22 @@
+//! Proc-macro companion crate for `admin-authority`.
+//!
+//! Provides `#[admin_authority]` (the module marker the framework discovers
+//! by name), `#[require_admin]` (prepends the runtime admin check to a gated
+//! instruction by re-expansion), and an internal `#[instruction]` shim that
+//! strips `#[account(...)]` helper attrs so the library compiles standalone.
+//!
+//! Attribute macros must live in a `proc-macro = true` crate, which cannot
+//! export runtime items. Consumers never depend on this crate directly, the
+//! `admin-authority` library re-exports everything.
+
+#![warn(missing_docs)]
+
 use proc_macro::TokenStream;
-use quote::quote;
-use syn::{FnArg, ItemFn, parse_macro_input};
+use quote::{format_ident, quote};
+use syn::{
+    Expr, FnArg, ItemFn, MetaNameValue, Token, parse_macro_input, parse_quote,
+    punctuated::Punctuated,
+};
 
 /// Marker attribute. Framework detects it on a #[lez_program] module
 /// and injects admin_initialize/admin_transfer/admin_renounce instructions.
@@ -11,53 +27,65 @@ pub fn admin_authority(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
-/// Gate marker for admin-only instructions. At this milestone it
-/// validates the target params by name: an `admin_config` param and a
-/// `caller` (or `signer`) param must be declared on the instruction.
-/// In M2 the framework injects these from metadata, and the runtime
-/// authorization check (decode Config PDA + `assert_admin` prepended
-/// to the handler body) lands there too.
+/// Body-inject macro. Prepends an admin authorization check (decode the
+/// Config PDA + `assert_admin`) to the annotated instruction's body, so a
+/// non-Admin caller is rejected before the handler's own logic runs.
+///
+/// Target params are supplied as attribute arguments, defaulting to the
+/// conventional names:
+/// - `config` — the Config PDA account param (default `admin_config`)
+/// - `signer` — the signing caller param (default `caller`)
+///
+/// ```ignore
+/// #[require_admin]                                  // uses defaults
+/// #[require_admin(config = my_cfg, signer = owner)] // overrides both
+/// ```
+///
+/// The macro never reads `#[account(...)]`; that attribute belongs solely to
+/// the framework. In the `#[lez_program]` path the framework resolves and
+/// injects these args during expansion (see ADR-0004).
 #[proc_macro_attribute]
-pub fn require_admin(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let func: syn::ItemFn = match syn::parse(item.clone()) {
-        Ok(f) => f,
-        Err(e) => return e.to_compile_error().into(),
-    };
+pub fn require_admin(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(
+        attr with Punctuated::<MetaNameValue, Token![,]>::parse_terminated
+    );
 
-    let mut has_admin_config_pda = false;
-    let mut has_signer = false;
+    let mut config_ident = format_ident!("admin_config");
+    let mut signer_ident = format_ident!("caller");
 
-    for arg in &func.sig.inputs {
-        let syn::FnArg::Typed(pt) = arg else { continue };
-        let syn::Pat::Ident(pat_ident) = &*pt.pat else {
-            continue;
+    for pair in args {
+        let value_ident = match &pair.value {
+            Expr::Path(p) if p.path.get_ident().is_some() => p.path.get_ident().unwrap().clone(),
+            other => {
+                return syn::Error::new_spanned(other, "expected a bare parameter name")
+                    .to_compile_error()
+                    .into();
+            }
         };
-        match pat_ident.ident.to_string().as_str() {
-            "admin_config" => has_admin_config_pda = true,
-            "caller" | "signer" => has_signer = true,
-            _ => {}
+
+        if pair.path.is_ident("config") {
+            config_ident = value_ident;
+        } else if pair.path.is_ident("signer") {
+            signer_ident = value_ident;
+        } else {
+            return syn::Error::new_spanned(
+                &pair.path,
+                "unknown key; expected `config` or `signer`",
+            )
+            .to_compile_error()
+            .into();
         }
     }
 
-    if !has_admin_config_pda {
-        return syn::Error::new_spanned(
-            &func.sig,
-            r#"#[require_admin] needs an #[account(pda = literal("admin_config"))] param"#,
-        )
-        .to_compile_error()
-        .into();
-    }
+    let mut func: syn::ItemFn = parse_macro_input!(item as ItemFn);
 
-    if !has_signer {
-        return syn::Error::new_spanned(
-            &func.sig,
-            "#[require_admin] needs an #[account(signer)] param",
-        )
-        .to_compile_error()
-        .into();
-    }
+    let prologue: syn::Stmt = parse_quote! {{
+        let __admin_cfg = ::admin_authority::AdminConfig::from_account(&#config_ident)?;
+        __admin_cfg.assert_admin(&#signer_ident)?;
+    }};
 
-    item
+    func.block.stmts.insert(0, prologue);
+    quote!(#func).into()
 }
 
 /// No-op `#[instruction]` for path-dep-scanned admin fns. Strips
