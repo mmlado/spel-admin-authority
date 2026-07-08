@@ -10,5 +10,5 @@ extension_attr = "admin_authority"
 [dependencies]
 borsh = { version = "1", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-spel-framework = { git = "https://github.com/mmlado/spel.git", branch = "feat/admin_authority" }
+spel-framework = { git = "https://github.com/mmlado/spel.git", branch = "feat/admin_authority_m2" }
 admin-authority-macros  = { path = "../admin-authority-macros"}
