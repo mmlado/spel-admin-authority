@@ -8,7 +8,28 @@ fn idl_contains_user_instr_and_admin_trio() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let src = PathBuf::from(manifest_dir).join("src/main.rs");
 
-    let idl = generate_idl_from_file_with_deps(&src, &[]).expect("IDL generation failed");
+    // Pass the path-dep dirs the real producers scan, so the types array is
+    // populated and can be pinned below.
+    let deps = [
+        PathBuf::from(manifest_dir)
+            .join("../admin-authority")
+            .canonicalize()
+            .expect("admin-authority dir"),
+        PathBuf::from(manifest_dir)
+            .join("../../spel-authority")
+            .canonicalize()
+            .expect("spel-authority dir"),
+    ];
+    let idl = generate_idl_from_file_with_deps(&src, &deps).expect("IDL generation failed");
+
+    // AdminCandidate is a `pub type` alias of authority::AuthorityCandidate.
+    // The collector must resolve the alias and emit the enum def under the
+    // alias name, or the CLI's defined-type lookup for admin_transfer breaks.
+    assert!(
+        idl.types.iter().any(|t| t.name == "AdminCandidate"),
+        "types array must carry AdminCandidate (alias resolution), got: {:?}",
+        idl.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>()
+    );
 
     let names: Vec<&str> = idl.instructions.iter().map(|i| i.name.as_str()).collect();
 

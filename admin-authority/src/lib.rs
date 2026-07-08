@@ -6,93 +6,32 @@
 #![warn(missing_docs)]
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::{Deserialize, Serialize};
 use spel_framework::prelude::*;
+
+use authority::{AuthoritySlot, AuthorityCandidate, AuthorityError};
 
 pub use admin_authority_macros::{admin_authority, instruction, require_admin};
 
 extern crate self as admin_authority;
 
-/// Transfer-time argument describing the intended new admin.
-///
-/// Paired with `new_admin_account: AccountWithMetadata` at every transfer.
-/// `AdminCandidate` is the claim, `AccountWithMetadata` is the chain-state
-/// evidence. One without the other provides no security guarantee.
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub enum AdminCandidate {
-    /// New admin is a keyholder. Validated by checking
-    /// `new_admin_account.is_authorized == true` (co-signed the tx).
-    Signer,
-    /// New admin is a program-owned PDA. Validated by deriving the address
-    /// from `(program_id, seed)`, matching it against `new_admin_account`,
-    /// and confirming the PDA is initialized.
-    Pda {
-        /// Program that owns the PDA. Part of the address derivation.
-        program_id: ProgramId,
-        /// 32-byte PDA seed. Part of the address derivation.
-        seed: [u8; 32],
-    },
-}
-
-impl AdminCandidate {
-    /// Resolves the candidate claim against on-chain evidence and returns the
-    /// `AccountId` to install as admin.
-    ///
-    /// The candidate is the claim; `account` is the chain-state evidence.
-    /// Both must agree before the address is trusted.
-    ///
-    /// Returns:
-    /// - `AdminError::InvalidCandidate` if `Signer` did not co-sign the tx,
-    ///   or the resolved id is the default `AccountId` (the renounced
-    ///   sentinel; installing it would be a silent renounce).
-    /// - `AdminError::CandidateMismatch` if a `Pda` claim does not derive to
-    ///   `account.account_id` (wrong account attached to the claim).
-    /// - `AdminError::UndeployedPda` if the `Pda` derives correctly but no
-    ///   program owns the account (`program_owner` is the default
-    ///   `ProgramId`). Anyone can fund the derived address; only the owning
-    ///   program's claim stamps `program_owner`, so a funded-but-unclaimed
-    ///   account is not a real PDA and would brick the program.
-    pub fn validate_with_account(
-        &self,
-        account: &AccountWithMetadata,
-    ) -> Result<AccountId, AdminError> {
-        let resolved = match self {
-            AdminCandidate::Signer => {
-                if !account.is_authorized {
-                    return Err(AdminError::InvalidCandidate);
-                }
-                account.account_id
-            }
-            AdminCandidate::Pda { program_id, seed } => {
-                let expected = AccountId::for_public_pda(program_id, &PdaSeed::new(*seed));
-                if account.account_id != expected {
-                    return Err(AdminError::CandidateMismatch);
-                }
-                if account.account == Account::default()
-                    || account.account.program_owner == ProgramId::default()
-                {
-                    return Err(AdminError::UndeployedPda);
-                }
-                account.account_id
-            }
-        };
-        if resolved == AccountId::default() {
-            return Err(AdminError::InvalidCandidate);
-        }
-        Ok(resolved)
-    }
-}
+/// Transfer-time claim describing the intended new admin. Alias of the
+/// shared [`AuthorityCandidate`]: `Signer` proves key control by
+/// co-signature, `Pda { program_id, seed }` by address derivation plus a
+/// deployment check. Always paired with a `new_admin_account` param that
+/// carries the chain-state evidence.
+pub type AdminCandidate = AuthorityCandidate;
 
 /// On-chain admin authority state for a single program.
 ///
 /// Stored in the program's Config PDA at `(program_id, "admin_config")`.
-/// Created once via `admin_initialize`; cannot be reinitialized.
-/// `admin == AccountId::default()` indicates the renounced state.
+/// Created once via `admin_initialize`; cannot be reinitialized. Wraps the
+/// shared [`AuthoritySlot`], whose holder is the current admin and whose
+/// `AccountId::default()` sentinel marks the renounced state. The borsh
+/// layout is a single 32-byte `AccountId`, unchanged by the extraction.
 #[account_type]
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
 pub struct AdminConfig {
-    /// Current admin's `AccountId`. `AccountId::default()` means renounced.
-    pub admin: AccountId,
+    slot: AuthoritySlot,
 }
 
 impl AdminConfig {
@@ -101,10 +40,7 @@ impl AdminConfig {
     /// Rejects `AccountId::default()` as the admin since that value is the
     /// reserved sentinel for the renounced state.
     pub fn initialize(admin: AccountId) -> Result<Self, AdminError> {
-        if admin == AccountId::default() {
-            return Err(AdminError::InvalidCandidate);
-        }
-        Ok(Self { admin })
+        Ok(Self { slot: AuthoritySlot::initialize(admin)? })
     }
 
     /// Asserts that the supplied signer is the current admin.
@@ -114,16 +50,7 @@ impl AdminConfig {
     /// - `AdminError::MissingSignature` if the signer account did not sign the tx.
     /// - `AdminError::NotAdmin` if the signer signed but is not the stored admin.
     pub fn assert_admin(&self, signer: &AccountWithMetadata) -> Result<(), AdminError> {
-        if self.admin == AccountId::default() {
-            return Err(AdminError::Renounced);
-        }
-        if !signer.is_authorized {
-            return Err(AdminError::MissingSignature);
-        }
-        if signer.account_id != self.admin {
-            return Err(AdminError::NotAdmin);
-        }
-        Ok(())
+        self.slot.assert(signer).map_err(Into::into)
     }
 
     /// Borsh-serialises the config for storage in the PDA's account data.
@@ -154,19 +81,15 @@ impl AdminConfig {
 
     /// Replaces the current admin after authorising the caller and validating
     /// the incoming admin.
-    ///
-    /// Order is the security model: the caller must be the current admin
-    /// (`assert_admin`) and the candidate must be valid
-    /// (`validate_with_account`) before `self.admin` is overwritten. Either
-    /// check failing leaves state untouched.
     pub fn transfer(
         &mut self,
         current: &AccountWithMetadata,
         candidate: AdminCandidate,
         new_account: &AccountWithMetadata,
     ) -> Result<(), AdminError> {
-        self.assert_admin(current)?;
-        self.admin = candidate.validate_with_account(new_account)?;
+        self.slot.assert(current)?;
+        let next = candidate.validate(new_account)?;
+        self.slot.transfer_to(next)?;
         Ok(())
     }
 
@@ -176,8 +99,8 @@ impl AdminConfig {
     ///
     /// Only the current admin may call (`assert_admin` runs first).
     pub fn renounce(&mut self, current: &AccountWithMetadata) -> Result<(), AdminError> {
-        self.assert_admin(current)?;
-        self.admin = AccountId::default();
+        self.slot.assert(current)?;
+        self.slot.renounce();
         Ok(())
     }
 
@@ -202,7 +125,7 @@ impl AdminConfig {
         new_admin: AdminCandidate,
         new_admin_account: &AccountWithMetadata,
     ) -> Result<(), AdminError> {
-        let resolved = new_admin.validate_with_account(new_admin_account)?;
+        let resolved = new_admin.validate(new_admin_account)?;
         let state = Self::initialize(resolved)?;
         state.write_to(config_account)
     }
@@ -237,9 +160,9 @@ impl AdminConfig {
 pub enum AdminError {
     /// Config PDA data is empty; `admin_initialize` has not been called.
     NotInitialized,
-    /// Stored `admin` is `AccountId::default()`; admin is renounced.
+    /// Stored `slot` holder is `AccountId::default()`; admin is renounced.
     Renounced,
-    /// Signer's `account_id` does not match the stored `admin`.
+    /// Signer's `account_id` does not match the stored `slot` holder.
     NotAdmin,
     /// Signer is not authorized (no valid signature in the WitnessSet).
     MissingSignature,
@@ -263,15 +186,15 @@ pub enum AdminError {
 impl core::fmt::Display for AdminError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            AdminError::NotInitialized => write!(f, "admin authority not initialized"),
-            AdminError::Renounced => write!(f, "admin authority renounced"),
-            AdminError::NotAdmin => write!(f, "signer is not the current admin"),
-            AdminError::MissingSignature => write!(f, "admin signature missing"),
-            AdminError::InvalidCandidate => write!(f, "invalid admin candidate"),
-            AdminError::UndeployedPda => write!(f, "candidate PDA is not deployed"),
-            AdminError::CandidateMismatch => write!(f, "candidate address mismatch"),
-            AdminError::EncodingFailed => write!(f, "AdminConfig encoding failed"),
-            AdminError::DecodingFailed => write!(f, "AdminConfig decoding failed"),
+            AdminError::NotInitialized      => write!(f, "admin authority not initialized"),
+            AdminError::Renounced           => write!(f, "admin authority renounced"),
+            AdminError::NotAdmin            => write!(f, "signer is not the current admin"),
+            AdminError::MissingSignature    => write!(f, "admin signature missing"),
+            AdminError::InvalidCandidate    => write!(f, "invalid admin candidate"),
+            AdminError::UndeployedPda       => write!(f, "candidate PDA is not deployed"),
+            AdminError::CandidateMismatch   => write!(f, "candidate address mismatch"),
+            AdminError::EncodingFailed      => write!(f, "AdminConfig encoding failed"),
+            AdminError::DecodingFailed      => write!(f, "AdminConfig decoding failed"),
             AdminError::AccountDataTooLarge => write!(f, "AdminConfig too large for account data"),
         }
     }
@@ -281,6 +204,19 @@ impl From<AdminError> for SpelError {
     fn from(e: AdminError) -> Self {
         SpelError::Unauthorized {
             message: e.to_string(),
+        }
+    }
+}
+
+impl From<AuthorityError> for AdminError {
+    fn from(e: AuthorityError) -> Self {
+        match e {
+            AuthorityError::InvalidCandidate    => AdminError::InvalidCandidate,
+            AuthorityError::UndeployedPda       => AdminError::UndeployedPda,
+            AuthorityError::CandidateMismatch   => AdminError::CandidateMismatch,
+            AuthorityError::NotHolder           => AdminError::NotAdmin,
+            AuthorityError::Renounced           => AdminError::Renounced,
+            AuthorityError::MissingSignature    => AdminError::MissingSignature,
         }
     }
 }
@@ -373,7 +309,7 @@ mod tests {
     #[test]
     fn initialize_sets_admin() {
         let cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
-        assert_eq!(cfg.admin, AccountId::new([1; 32]));
+        assert_eq!(cfg.slot.holder(), AccountId::new([1; 32]));
     }
 
     #[test]
@@ -461,7 +397,7 @@ mod tests {
         };
         let candidate = AdminCandidate::Pda { program_id, seed };
         assert_eq!(cfg.transfer(&signer, candidate, &pda_account), Ok(()));
-        assert_eq!(cfg.admin, pda_account.account_id);
+        assert_eq!(cfg.slot.holder(), pda_account.account_id);
     }
 
     #[test]
@@ -522,7 +458,7 @@ mod tests {
             ),
             Err(AdminError::UndeployedPda)
         );
-        assert_eq!(cfg.admin, AccountId::new([1; 32]));
+        assert_eq!(cfg.slot.holder(), AccountId::new([1; 32]));
     }
 
     #[test]
@@ -536,7 +472,7 @@ mod tests {
             cfg.transfer(&current, AdminCandidate::Signer, &candidate_account),
             Err(AdminError::InvalidCandidate)
         );
-        assert_eq!(cfg.admin, AccountId::new([1; 32]));
+        assert_eq!(cfg.slot.holder(), AccountId::new([1; 32]));
     }
 
     #[test]
@@ -544,7 +480,7 @@ mod tests {
         let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
         let signer = acct(1, true);
         cfg.renounce(&signer).unwrap();
-        assert_eq!(cfg.admin, AccountId::default());
+        assert_eq!(cfg.slot.holder(), AccountId::default());
     }
 
     #[test]
