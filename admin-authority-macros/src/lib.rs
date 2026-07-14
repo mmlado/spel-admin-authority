@@ -25,11 +25,11 @@ pub fn require_admin(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     for arg in &func.sig.inputs {
         let syn::FnArg::Typed(pt) = arg else { continue };
-        for attr in &pt.attrs {
-            if !attr.path().is_ident("account") { continue; }
-            let s = attr.to_token_stream().to_string();
-            if s.contains("admin_config") { has_admin_config_pda = true; }
-            if s.contains("signer") { has_signer = true; }
+        let syn::Pat::Ident(pat_ident) = &*pt.pat else { continue };
+        match pat_ident.ident.to_string().as_str() {
+            "admin_config" => has_admin_config_pda = true,
+            "caller" | "signer" => has_signer = true,
+            _ => {}
         }
     }
 
