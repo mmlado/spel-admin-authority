@@ -24,7 +24,10 @@ pub enum AdminCandidate {
     /// New admin is a program-owned PDA. Validated by deriving the address
     /// from `(program_id, seed)`, matching it against `new_admin_account`,
     /// and confirming the PDA is initialized.
-    Pda { program_id: ProgramId, seed: [u8; 32] },
+    Pda {
+        program_id: ProgramId,
+        seed: [u8; 32],
+    },
 }
 
 /// On-chain admin authority state for a single program.
@@ -46,9 +49,9 @@ pub struct AdminConfig {
 pub enum AdminError {
     /// Config PDA data is empty; `admin_initialize` has not been called.
     NotInitialized,
-    /// Stored `admin_authority` is `AccountId::default()`; admin is renounced.
+    /// Stored `admin` is `AccountId::default()`; admin is renounced.
     Renounced,
-    /// Signer's `account_id` does not match the stored `admin_authority`.
+    /// Signer's `account_id` does not match the stored `admin`.
     NotAdmin,
     /// Signer is not authorized (no valid signature in the WitnessSet).
     MissingSignature,
@@ -85,27 +88,33 @@ impl core::fmt::Display for AdminError {
 
 impl From<AdminError> for SpelError {
     fn from(e: AdminError) -> Self {
-        SpelError::Unauthorized { message: e.to_string() }
+        SpelError::Unauthorized {
+            message: e.to_string(),
+        }
     }
 }
 
-/// Creates the admin Config PDA and sets the first admin.
+/// Creates the admin Config PDA and installs the caller as the first admin
+/// (self-election).
+///
+/// There is no candidate argument: LEZ rejects a transaction whose account
+/// list contains the same account id twice, so a caller could never pass
+/// itself again as candidate evidence. The signing caller becomes admin;
+/// to hand the role to an external keyholder or PDA, call `admin_transfer`
+/// after initializing.
 ///
 /// Must be called once per program deployment. Re-initialization is rejected
 /// automatically by `#[account(init)]`. The Config PDA does not exist until
 /// this instruction lands, so any caller can win the race during the
-/// initialization window; deployers should bundle this call with deployment.
-///
-/// `new_admin` declares the intended admin; `new_admin_account` is the
-/// chain-state evidence the candidate is real. For self-election, the caller
-/// passes `AdminCandidate::Signer` with their own account.
+/// initialization window. Send it immediately after deployment; bundling is
+/// not possible (a LEZ deployment transaction carries no instructions).
 #[instruction]
 pub fn admin_initialize(
     #[account(init, pda = literal("admin_config"))] mut config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
-    new_admin_account: AccountWithMetadata,
-    new_admin: ::admin_authority::AdminCandidate,
-) -> SpelResult { todo!() }
+) -> SpelResult {
+    todo!()
+}
 
 /// Replaces the current admin with a new signer or PDA.
 ///
@@ -117,9 +126,11 @@ pub fn admin_initialize(
 pub fn admin_transfer(
     #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
-    new_admin_account: AccountWithMetadata,
-    new_admin: ::admin_authority::AdminCandidate,
-) -> SpelResult { todo!() }
+    _new_admin_account: AccountWithMetadata,
+    _new_admin: ::admin_authority::AdminCandidate,
+) -> SpelResult {
+    todo!()
+}
 
 /// Permanently zeros the admin in the Config PDA.
 ///
@@ -130,7 +141,9 @@ pub fn admin_transfer(
 pub fn admin_renounce(
     #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
-) -> SpelResult { todo!() }
+) -> SpelResult {
+    todo!()
+}
 
 #[cfg(test)]
 mod tests {
@@ -138,16 +151,46 @@ mod tests {
 
     #[test]
     fn admin_error_display_strings() {
-        assert_eq!(AdminError::NotInitialized.to_string(),    "admin authority not initialized");
-        assert_eq!(AdminError::Renounced.to_string(),         "admin authority renounced");
-        assert_eq!(AdminError::NotAdmin.to_string(),          "signer is not the current admin");
-        assert_eq!(AdminError::MissingSignature.to_string(),  "admin signature missing");
-        assert_eq!(AdminError::InvalidCandidate.to_string(),  "invalid admin candidate");
-        assert_eq!(AdminError::UndeployedPda.to_string(),     "candidate PDA is not deployed");
-        assert_eq!(AdminError::CandidateMismatch.to_string(), "candidate address mismatch");
-        assert_eq!(AdminError::EncodingFailed.to_string(),    "AdminConfig encoding failed");
-        assert_eq!(AdminError::DecodingFailed.to_string(),    "AdminConfig decoding failed");
-        assert_eq!(AdminError::AccountDataTooLarge.to_string(), "AdminConfig too large for account data");
+        assert_eq!(
+            AdminError::NotInitialized.to_string(),
+            "admin authority not initialized"
+        );
+        assert_eq!(
+            AdminError::Renounced.to_string(),
+            "admin authority renounced"
+        );
+        assert_eq!(
+            AdminError::NotAdmin.to_string(),
+            "signer is not the current admin"
+        );
+        assert_eq!(
+            AdminError::MissingSignature.to_string(),
+            "admin signature missing"
+        );
+        assert_eq!(
+            AdminError::InvalidCandidate.to_string(),
+            "invalid admin candidate"
+        );
+        assert_eq!(
+            AdminError::UndeployedPda.to_string(),
+            "candidate PDA is not deployed"
+        );
+        assert_eq!(
+            AdminError::CandidateMismatch.to_string(),
+            "candidate address mismatch"
+        );
+        assert_eq!(
+            AdminError::EncodingFailed.to_string(),
+            "AdminConfig encoding failed"
+        );
+        assert_eq!(
+            AdminError::DecodingFailed.to_string(),
+            "AdminConfig decoding failed"
+        );
+        assert_eq!(
+            AdminError::AccountDataTooLarge.to_string(),
+            "AdminConfig too large for account data"
+        );
     }
 
     #[test]

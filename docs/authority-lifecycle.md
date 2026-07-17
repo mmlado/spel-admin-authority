@@ -2,6 +2,8 @@
 
 How `AdminConfig` moves between states over a program's lifetime, what each transition validates, and which guarantees the library provides.
 
+> Status at M1: this document specifies the target behavior. The validation and transition logic it describes (`AdminCandidate::validate_with_account`, the method bodies behind each transition) lands in M2; at this milestone the instruction fns are stubs.
+
 ## State machine
 
 ```
@@ -11,7 +13,7 @@ How `AdminConfig` moves between states over a program's lifetime, what each tran
                  │ admin_initialize
                  ▼
         ┌──────────────────┐
-        │   Initialized    │   admin_authority = <set>
+        │   Initialized    │   admin = <set>
         │  admin = AcctId  │◄────────┐
         └────┬─────────────┘         │
              │                       │ admin_transfer
@@ -25,7 +27,7 @@ How `AdminConfig` moves between states over a program's lifetime, what each tran
              │ admin_renounce
              ▼
         ┌──────────────────┐
-        │    Renounced     │   admin_authority = AccountId::default()
+        │    Renounced     │   admin = AccountId::default()
         └──────────────────┘   terminal; no further transitions
 ```
 
@@ -33,9 +35,9 @@ How `AdminConfig` moves between states over a program's lifetime, what each tran
 
 **Uninitialized.** The Config PDA at `(program_id, "admin_config")` does not yet exist on-chain. Any caller can submit `admin_initialize`. This period is the **initialization window**.
 
-**Initialized.** The Config PDA exists and `admin_authority` holds the current admin's `AccountId`. Every `#[require_admin]`-gated instruction reads this value to authorize the caller.
+**Initialized.** The Config PDA exists and `admin` holds the current admin's `AccountId`. Every `#[require_admin]`-gated instruction reads this value to authorize the caller.
 
-**Renounced.** The Config PDA exists but `admin_authority` is `AccountId::default()`. This is a terminal state. All gated instructions reject with `AdminError::Renounced`, and `admin_transfer` and `admin_renounce` both fail.
+**Renounced.** The Config PDA exists but `admin` is `AccountId::default()`. This is a terminal state. All gated instructions reject with `AdminError::Renounced`, and `admin_transfer` and `admin_renounce` both fail.
 
 ## Transitions
 
@@ -45,16 +47,13 @@ How `AdminConfig` moves between states over a program's lifetime, what each tran
 Uninitialized → Initialized
 ```
 
-**Inputs:** `caller: AccountWithMetadata` (signer), `new_admin_account: AccountWithMetadata` (claim subject), `new_admin: AdminCandidate`.
+**Inputs:** `caller: AccountWithMetadata` (signer).
 
-**Resolution:**
+**Resolution:** self-election, always. The caller becomes admin (`admin = caller.account_id`). There is no candidate argument at initialize: LEZ rejects a transaction whose account list contains the same account id twice, so a caller could never pass itself again as candidate evidence. To hand the role to an external keyholder or PDA, initialize first and then call `admin_transfer`.
 
-- `AdminCandidate::Signer`: admin is set to `new_admin_account.account_id`. The new admin must co-sign the transaction (`is_authorized == true`). To self-elect as admin, the caller passes their own account as `new_admin_account`.
-- `AdminCandidate::Pda { program_id, seed }`: the library derives the expected PDA address, confirms it matches `new_admin_account.account_id`, and confirms the PDA is already deployed.
+**Validations:** the Config PDA is enforced as freshly initialized by `#[account(init)]`, the caller's `is_authorized` flag must be true, and the caller's `account_id` must not be `AccountId::default()` (which would put the config into Renounced state at birth).
 
-**Validations:** the Config PDA is enforced as freshly initialized by `#[account(init)]`, the caller's `is_authorized` flag must be true, and the resolved admin must not be `AccountId::default()` (which would put the config into Renounced state at birth).
-
-**Failure modes:** `AdminError::InvalidCandidate`, `AdminError::UndeployedPda`, `AdminError::CandidateMismatch`.
+**Failure modes:** `AdminError::InvalidCandidate`.
 
 ### `admin_transfer`
 
@@ -64,7 +63,7 @@ Initialized → Initialized (new admin)
 
 **Inputs:** `caller: AccountWithMetadata` (the current admin, signing), `new_admin_account: AccountWithMetadata`, `new_admin: AdminCandidate`.
 
-**Validations:** the config must not be Renounced, `caller.account_id` must equal the stored `admin_authority`, `caller.is_authorized` must be true, and `AdminCandidate::validate_with_account(new_admin_account)` must succeed (either a co-signed signer or a deployed PDA whose address matches the derived one).
+**Validations:** the config must not be Renounced, `caller.account_id` must equal the stored `admin`, `caller.is_authorized` must be true, and `AdminCandidate::validate_with_account(new_admin_account)` must succeed (either a co-signed signer or a deployed PDA whose address matches the derived one).
 
 **Failure modes:** `AdminError::NotAdmin`, `AdminError::Renounced`, `AdminError::InvalidCandidate`, `AdminError::UndeployedPda`, `AdminError::CandidateMismatch`.
 
@@ -76,9 +75,9 @@ Initialized → Renounced
 
 **Inputs:** `caller: AccountWithMetadata` (the current admin, signing).
 
-**Effect:** writes `AccountId::default()` into `admin_authority`. This is terminal; no further transitions are possible.
+**Effect:** writes `AccountId::default()` into `admin`. This is terminal; no further transitions are possible.
 
-**Validations:** the config must be Initialized, `caller.account_id` must equal the stored `admin_authority`, and `caller.is_authorized` must be true.
+**Validations:** the config must be Initialized, `caller.account_id` must equal the stored `admin`, and `caller.is_authorized` must be true.
 
 **Failure modes:** `AdminError::NotAdmin`, `AdminError::Renounced`.
 
@@ -86,7 +85,7 @@ Initialized → Renounced
 
 Two states have empty-looking config slots in different ways. Uninitialized means the PDA contains no data; Renounced means it contains data but the admin field is zeroed.
 
-| State | `account.data` | `admin_authority` |
+| State | `account.data` | `admin` |
 |---|---|---|
 | Uninitialized | empty | n/a (decode fails) |
 | Initialized | non-empty | non-default |
@@ -95,8 +94,8 @@ Two states have empty-looking config slots in different ways. Uninitialized mean
 `AdminConfig::assert_admin` discriminates in order:
 
 1. If `account.data` is empty, return `AdminError::NotInitialized`.
-2. If decode succeeds and `admin_authority == AccountId::default()`, return `AdminError::Renounced`.
-3. Otherwise compare `signer.account_id` to `admin_authority`.
+2. If decode succeeds and `admin == AccountId::default()`, return `AdminError::Renounced`.
+3. Otherwise compare `signer.account_id` to `admin`.
 
 The two error variants are deliberately separate because a consumer may want different UX for each. "You haven't called init yet" is a recoverable mistake; "Admin renounced" is permanent.
 
@@ -120,7 +119,7 @@ Only the owning program can produce a valid seed claim, because LEZ pins `caller
 
 ## Initialization window risk
 
-Between deployment and the first successful `admin_initialize`, anyone can submit `admin_initialize` and become admin. Deployers should call `admin_initialize` immediately after deployment, ideally in the same transaction or before publishing the program's address.
+Between deployment and the first successful `admin_initialize`, anyone can submit `admin_initialize` and become admin. Deployers must call `admin_initialize` immediately after deployment. Bundling with the deployment is not possible: a LEZ deployment transaction carries only bytecode, no instructions and no accounts.
 
 The library provides no protection against front-running this window. By construction, the Config PDA does not yet exist, so there is no stored authority to check against.
 

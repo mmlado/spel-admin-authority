@@ -1,5 +1,5 @@
+use admin_authority::require_admin;
 use spel_framework::prelude::*;
-use admin_authority::{admin_authority, require_admin};
 
 #[lez_program]
 #[admin_authority]
@@ -10,9 +10,9 @@ mod admin_authority_sample {
     #[require_admin]
     pub fn update_value(
         #[account(pda = literal("admin_config"))] admin_config: AccountWithMetadata,
-        #[account(mut, pda = literal("program_config"))] mut config: AccountWithMetadata,
         #[account(signer)] caller: AccountWithMetadata,
-        new_value: u64,
+        #[account(mut, pda = literal("program_config"))] mut _config: AccountWithMetadata,
+        _new_value: u64,
     ) -> SpelResult {
         todo!()
     }

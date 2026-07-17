@@ -1,18 +1,22 @@
 use proc_macro::TokenStream;
-use quote::{ quote, ToTokens };
-use syn::{parse_macro_input, FnArg, ItemFn};
+use quote::quote;
+use syn::{FnArg, ItemFn, parse_macro_input};
 
 /// Marker attribute. Framework detects it on a #[lez_program] module
 /// and injects admin_initialize/admin_transfer/admin_renounce instructions.
-/// As a standalone (no #[lez_program]) it emits a compile error.
+/// As a standalone (no #[lez_program]) it is currently a no-op pass-through.
 #[proc_macro_attribute]
 pub fn admin_authority(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // Pass-through. Framework's #[lez_program] reads this attr by name.
     item
 }
 
-/// Body-inject macro. Adds an admin authorization check before the
-/// annotated instruction's body runs.
+/// Gate marker for admin-only instructions. At this milestone it
+/// validates the target params by name: an `admin_config` param and a
+/// `caller` (or `signer`) param must be declared on the instruction.
+/// In M2 the framework injects these from metadata, and the runtime
+/// authorization check (decode Config PDA + `assert_admin` prepended
+/// to the handler body) lands there too.
 #[proc_macro_attribute]
 pub fn require_admin(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let func: syn::ItemFn = match syn::parse(item.clone()) {
@@ -25,7 +29,9 @@ pub fn require_admin(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     for arg in &func.sig.inputs {
         let syn::FnArg::Typed(pt) = arg else { continue };
-        let syn::Pat::Ident(pat_ident) = &*pt.pat else { continue };
+        let syn::Pat::Ident(pat_ident) = &*pt.pat else {
+            continue;
+        };
         match pat_ident.ident.to_string().as_str() {
             "admin_config" => has_admin_config_pda = true,
             "caller" | "signer" => has_signer = true,
