@@ -49,7 +49,7 @@ Uninitialized → Initialized
 
 **Inputs:** `caller: AccountWithMetadata` (signer).
 
-**Resolution:** self-election, always. The caller becomes admin (`admin = caller.account_id`). There is no candidate argument at initialize: LEZ rejects a transaction whose account list contains the same account id twice, so a caller could never pass itself again as candidate evidence. To hand the role to an external keyholder or PDA, initialize first and then call `admin_transfer`.
+**Resolution:** self-election, always. The caller becomes admin (`admin = caller.account_id`). There is no candidate argument at initialize: the LEZ duplicate-account rule rejects any transaction listing the same account id twice, so a caller could never pass itself again as candidate evidence (see [ADR-0005](adr/0005-self-election-via-caller.md)). To hand the role to an external keyholder or PDA, initialize first and then call `admin_transfer`.
 
 **Validations:** the Config PDA is enforced as freshly initialized by `#[account(init)]`, the caller's `is_authorized` flag must be true, and the caller's `account_id` must not be `AccountId::default()` (which would put the config into Renounced state at birth).
 
@@ -63,7 +63,7 @@ Initialized → Initialized (new admin)
 
 **Inputs:** `caller: AccountWithMetadata` (the current admin, signing), `new_admin_account: AccountWithMetadata`, `new_admin: AdminCandidate`.
 
-**Validations:** the config must not be Renounced, `caller.account_id` must equal the stored `admin`, `caller.is_authorized` must be true, and `AdminCandidate::validate_with_account(new_admin_account)` must succeed (either a co-signed signer or a deployed PDA whose address matches the derived one).
+**Validations:** the config must not be Renounced, `caller.account_id` must equal the stored `admin`, `caller.is_authorized` must be true, and `AdminCandidate::validate_with_account(new_admin_account)` must succeed (either a co-signed signer or a program-owned PDA whose address matches the derived one). A candidate resolving to the default `AccountId` is rejected as `InvalidCandidate`: that value is the renounced sentinel, and installing it would be a silent renounce.
 
 **Failure modes:** `AdminError::NotAdmin`, `AdminError::Renounced`, `AdminError::InvalidCandidate`, `AdminError::UndeployedPda`, `AdminError::CandidateMismatch`.
 
@@ -109,7 +109,7 @@ The `is_authorized` flag on `AccountWithMetadata` is set by LEZ during transacti
 
 For `AdminCandidate::Signer`, `new_admin_account.is_authorized` must also be true. Without this, an attacker could name an arbitrary AccountId as the new admin. Requiring a co-signature proves the new admin's keyholder consents to the transfer.
 
-For `AdminCandidate::Pda`, signatures aren't applicable. PDAs cannot sign. The library proves the candidate by deriving the address from `(program_id, seed)`, checking it matches `new_admin_account.account_id`, and checking the PDA has been deployed (`account != Account::default()` and `program_owner != DEFAULT_PROGRAM_ID`).
+For `AdminCandidate::Pda`, signatures aren't applicable. PDAs cannot sign. The library proves the candidate by deriving the address from `(program_id, seed)`, checking it matches `new_admin_account.account_id`, and checking the PDA is program-owned (`program_owner` is not the default `ProgramId`; an untouched account is also rejected). Anyone can fund the derived address, but only the owning program's claim stamps `program_owner`, so a funded-but-unclaimed account is rejected as undeployed.
 
 ## Program-as-admin via CPI
 
@@ -119,9 +119,9 @@ Only the owning program can produce a valid seed claim, because LEZ pins `caller
 
 ## Initialization window risk
 
-Between deployment and the first successful `admin_initialize`, anyone can submit `admin_initialize` and become admin. Deployers must call `admin_initialize` immediately after deployment. Bundling with the deployment is not possible: a LEZ deployment transaction carries only bytecode, no instructions and no accounts.
+Between deployment and the first successful `admin_initialize`, anyone can submit `admin_initialize` and become admin. Deployers must send `admin_initialize` immediately after deployment. Bundling with the deployment is not possible today: a LEZ deployment transaction carries only bytecode, no instructions and no accounts.
 
-The library provides no protection against front-running this window. By construction, the Config PDA does not yet exist, so there is no stored authority to check against.
+The library provides no protection against front-running this window. By construction, the Config PDA does not yet exist, so there is no stored authority to check against, and LEZ records no deployer identity to gate on.
 
 ## Renounce is terminal
 

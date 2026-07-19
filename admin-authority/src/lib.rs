@@ -3,6 +3,8 @@
 //! operations consumed by the `#[require_admin]` and `#[admin_authority]`
 //! macros.
 
+#![warn(missing_docs)]
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use spel_framework::prelude::*;
@@ -25,9 +27,60 @@ pub enum AdminCandidate {
     /// from `(program_id, seed)`, matching it against `new_admin_account`,
     /// and confirming the PDA is initialized.
     Pda {
+        /// Program that owns the PDA. Part of the address derivation.
         program_id: ProgramId,
+        /// 32-byte PDA seed. Part of the address derivation.
         seed: [u8; 32],
     },
+}
+
+impl AdminCandidate {
+    /// Resolves the candidate claim against on-chain evidence and returns the
+    /// `AccountId` to install as admin.
+    ///
+    /// The candidate is the claim; `account` is the chain-state evidence.
+    /// Both must agree before the address is trusted.
+    ///
+    /// Returns:
+    /// - `AdminError::InvalidCandidate` if `Signer` did not co-sign the tx,
+    ///   or the resolved id is the default `AccountId` (the renounced
+    ///   sentinel; installing it would be a silent renounce).
+    /// - `AdminError::CandidateMismatch` if a `Pda` claim does not derive to
+    ///   `account.account_id` (wrong account attached to the claim).
+    /// - `AdminError::UndeployedPda` if the `Pda` derives correctly but no
+    ///   program owns the account (`program_owner` is the default
+    ///   `ProgramId`). Anyone can fund the derived address; only the owning
+    ///   program's claim stamps `program_owner`, so a funded-but-unclaimed
+    ///   account is not a real PDA and would brick the program.
+    pub fn validate_with_account(
+        &self,
+        account: &AccountWithMetadata,
+    ) -> Result<AccountId, AdminError> {
+        let resolved = match self {
+            AdminCandidate::Signer => {
+                if !account.is_authorized {
+                    return Err(AdminError::InvalidCandidate);
+                }
+                account.account_id
+            }
+            AdminCandidate::Pda { program_id, seed } => {
+                let expected = AccountId::for_public_pda(program_id, &PdaSeed::new(*seed));
+                if account.account_id != expected {
+                    return Err(AdminError::CandidateMismatch);
+                }
+                if account.account == Account::default()
+                    || account.account.program_owner == ProgramId::default()
+                {
+                    return Err(AdminError::UndeployedPda);
+                }
+                account.account_id
+            }
+        };
+        if resolved == AccountId::default() {
+            return Err(AdminError::InvalidCandidate);
+        }
+        Ok(resolved)
+    }
 }
 
 /// On-chain admin authority state for a single program.
@@ -40,6 +93,141 @@ pub enum AdminCandidate {
 pub struct AdminConfig {
     /// Current admin's `AccountId`. `AccountId::default()` means renounced.
     pub admin: AccountId,
+}
+
+impl AdminConfig {
+    /// Constructs an initialised AdminConfig.
+    ///
+    /// Rejects `AccountId::default()` as the admin since that value is the
+    /// reserved sentinel for the renounced state.
+    pub fn initialize(admin: AccountId) -> Result<Self, AdminError> {
+        if admin == AccountId::default() {
+            return Err(AdminError::InvalidCandidate);
+        }
+        Ok(Self { admin })
+    }
+
+    /// Asserts that the supplied signer is the current admin.
+    ///
+    /// Returns:
+    /// - `AdminError::Renounced` if the config has no admin (terminal state).
+    /// - `AdminError::MissingSignature` if the signer account did not sign the tx.
+    /// - `AdminError::NotAdmin` if the signer signed but is not the stored admin.
+    pub fn assert_admin(&self, signer: &AccountWithMetadata) -> Result<(), AdminError> {
+        if self.admin == AccountId::default() {
+            return Err(AdminError::Renounced);
+        }
+        if !signer.is_authorized {
+            return Err(AdminError::MissingSignature);
+        }
+        if signer.account_id != self.admin {
+            return Err(AdminError::NotAdmin);
+        }
+        Ok(())
+    }
+
+    /// Borsh-serialises the config for storage in the PDA's account data.
+    ///
+    /// Returns `AdminError::EncodingFailed` if serialisation fails.
+    pub fn encode(&self) -> Result<Vec<u8>, AdminError> {
+        borsh::to_vec(self).map_err(|_| AdminError::EncodingFailed)
+    }
+
+    /// Borsh-deserialises config from raw account data.
+    ///
+    /// Distinguishes "never initialised" from "corrupt":
+    /// - `AdminError::NotInitialized` if `data` is empty (PDA exists but
+    ///   `admin_initialize` has not run).
+    /// - `AdminError::DecodingFailed` if `data` is non-empty but malformed.
+    pub fn decode(data: &[u8]) -> Result<Self, AdminError> {
+        if data.is_empty() {
+            return Err(AdminError::NotInitialized);
+        }
+        Self::try_from_slice(data).map_err(|_| AdminError::DecodingFailed)
+    }
+
+    /// Loads config from an account's data field. Convenience wrapper over
+    /// [`AdminConfig::decode`].
+    pub fn from_account(account: &AccountWithMetadata) -> Result<Self, AdminError> {
+        Self::decode(&account.account.data)
+    }
+
+    /// Replaces the current admin after authorising the caller and validating
+    /// the incoming admin.
+    ///
+    /// Order is the security model: the caller must be the current admin
+    /// (`assert_admin`) and the candidate must be valid
+    /// (`validate_with_account`) before `self.admin` is overwritten. Either
+    /// check failing leaves state untouched.
+    pub fn transfer(
+        &mut self,
+        current: &AccountWithMetadata,
+        candidate: AdminCandidate,
+        new_account: &AccountWithMetadata,
+    ) -> Result<(), AdminError> {
+        self.assert_admin(current)?;
+        self.admin = candidate.validate_with_account(new_account)?;
+        Ok(())
+    }
+
+    /// Permanently zeros the admin to `AccountId::default()`, the renounced
+    /// sentinel. Terminal: once renounced, `assert_admin` always fails with
+    /// `AdminError::Renounced`, so this is idempotent and irreversible.
+    ///
+    /// Only the current admin may call (`assert_admin` runs first).
+    pub fn renounce(&mut self, current: &AccountWithMetadata) -> Result<(), AdminError> {
+        self.assert_admin(current)?;
+        self.admin = AccountId::default();
+        Ok(())
+    }
+
+    /// Serialises and writes this config into an account's data field.
+    ///
+    /// Returns `AdminError:AccountDataTooLarge` if the encoded bytes exceed
+    /// the account's max length.
+    pub fn write_to(&self, account: &mut AccountWithMetadata) -> Result<(), AdminError> {
+        let bytes = self.encode()?;
+        account.account.data = bytes
+            .try_into()
+            .map_err(|_| AdminError::AccountDataTooLarge)?;
+        Ok(())
+    }
+
+    /// Validates a candidate, builds a fresh config, and writes it to the PDA.
+    ///
+    /// Used by `admin_initialize` and by consumers doing single-tx deploy +
+    /// admin setup inside their own `initialize` handler.
+    pub fn bootstrap(
+        config_account: &mut AccountWithMetadata,
+        new_admin: AdminCandidate,
+        new_admin_account: &AccountWithMetadata,
+    ) -> Result<(), AdminError> {
+        let resolved = new_admin.validate_with_account(new_admin_account)?;
+        let state = Self::initialize(resolved)?;
+        state.write_to(config_account)
+    }
+
+    /// Loads config from account, transfers admin, writes back.
+    pub fn perform_transfer(
+        config_account: &mut AccountWithMetadata,
+        current: &AccountWithMetadata,
+        candidate: AdminCandidate,
+        new_admin_account: &AccountWithMetadata,
+    ) -> Result<(), AdminError> {
+        let mut state = Self::from_account(config_account)?;
+        state.transfer(current, candidate, new_admin_account)?;
+        state.write_to(config_account)
+    }
+
+    /// Loads config from account, renounce admin, writes back.
+    pub fn perform_renounce(
+        config_account: &mut AccountWithMetadata,
+        current: &AccountWithMetadata,
+    ) -> Result<(), AdminError> {
+        let mut state = Self::from_account(config_account)?;
+        state.renounce(current)?;
+        state.write_to(config_account)
+    }
 }
 
 /// Errors returned by `admin-authority` library methods. Mapped to
@@ -55,9 +243,12 @@ pub enum AdminError {
     NotAdmin,
     /// Signer is not authorized (no valid signature in the WitnessSet).
     MissingSignature,
-    /// `AdminCandidate::Signer` paired with a default `AccountId`.
+    /// Candidate failed validation: `Signer` did not co-sign, or the
+    /// resolved id is the default `AccountId` (installing it would be a
+    /// silent renounce).
     InvalidCandidate,
-    /// `AdminCandidate::Pda` references an undeployed PDA.
+    /// `AdminCandidate::Pda` references an account no program owns
+    /// (unclaimed or merely funded).
     UndeployedPda,
     /// Candidate's derived address does not match `new_admin_account.account_id`.
     CandidateMismatch,
@@ -94,26 +285,36 @@ impl From<AdminError> for SpelError {
     }
 }
 
-/// Creates the admin Config PDA and installs the caller as the first admin
+/// Creates the admin Config PDA and installs the caller as admin
 /// (self-election).
 ///
-/// There is no candidate argument: LEZ rejects a transaction whose account
-/// list contains the same account id twice, so a caller could never pass
-/// itself again as candidate evidence. The signing caller becomes admin;
-/// to hand the role to an external keyholder or PDA, call `admin_transfer`
-/// after initializing.
-///
 /// Must be called once per program deployment. Re-initialization is rejected
-/// automatically by `#[account(init)]`. The Config PDA does not exist until
-/// this instruction lands, so any caller can win the race during the
-/// initialization window. Send it immediately after deployment; bundling is
-/// not possible (a LEZ deployment transaction carries no instructions).
+/// automatically by `#[account(init)]`. There is no candidate argument at
+/// initialize: LEZ rejects a transaction whose account list contains the same
+/// account id twice, so a caller could never pass itself again as evidence.
+/// See ADR-0005. To hand the role to an external keyholder or PDA, call
+/// `admin_transfer` after initializing.
+///
+/// The Config PDA does not exist until this instruction lands, so any caller
+/// can win the race during the initialization window. LEZ deployment
+/// transactions carry no instructions, so deploy and initialize cannot be
+/// bundled today; send `admin_initialize` immediately after deployment.
 #[instruction]
 pub fn admin_initialize(
     #[account(init, pda = literal("admin_config"))] mut config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
 ) -> SpelResult {
-    todo!()
+    AdminConfig::bootstrap(&mut config, AdminCandidate::Signer, &caller)?;
+    Ok(SpelOutput::execute(
+        vec![
+            (
+                config.account,
+                AutoClaim::Claimed(Claim::Pda(PdaSeed::new(seed_from_str("admin_config")))),
+            ),
+            (caller.account, AutoClaim::None),
+        ],
+        vec![],
+    ))
 }
 
 /// Replaces the current admin with a new signer or PDA.
@@ -122,14 +323,22 @@ pub fn admin_initialize(
 /// `AdminCandidate` and validated against `new_admin_account`. After this
 /// transaction lands, the previous admin can no longer call gated
 /// instructions.
+///
+/// Transfer-to-self is impossible: `caller` and `new_admin_account` would
+/// share one account id, which LEZ rejects as a duplicate. That is
+/// acceptable because such a transfer would be a no-op.
 #[instruction]
 pub fn admin_transfer(
     #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
-    _new_admin_account: AccountWithMetadata,
-    _new_admin: ::admin_authority::AdminCandidate,
+    new_admin_account: AccountWithMetadata,
+    new_admin: ::admin_authority::AdminCandidate,
 ) -> SpelResult {
-    todo!()
+    AdminConfig::perform_transfer(&mut config, &caller, new_admin, &new_admin_account)?;
+    Ok(SpelOutput::execute(
+        vec![config.account, caller.account, new_admin_account.account],
+        vec![],
+    ))
 }
 
 /// Permanently zeros the admin in the Config PDA.
@@ -142,12 +351,236 @@ pub fn admin_renounce(
     #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
 ) -> SpelResult {
-    todo!()
+    AdminConfig::perform_renounce(&mut config, &caller)?;
+    Ok(SpelOutput::execute(
+        vec![config.account, caller.account],
+        vec![],
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn acct(id_byte: u8, signed: bool) -> AccountWithMetadata {
+        AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: signed,
+            account_id: AccountId::new([id_byte; 32]),
+        }
+    }
+
+    #[test]
+    fn initialize_sets_admin() {
+        let cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        assert_eq!(cfg.admin, AccountId::new([1; 32]));
+    }
+
+    #[test]
+    fn initialize_rejects_default_account_id() {
+        assert_eq!(
+            AdminConfig::initialize(AccountId::default()),
+            Err(AdminError::InvalidCandidate)
+        );
+    }
+
+    #[test]
+    fn assert_admin_accepts_admin() {
+        let cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        assert_eq!(cfg.assert_admin(&signer), Ok(()));
+    }
+
+    #[test]
+    fn assert_admin_rejects_wrong_signer() {
+        let cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(2, true);
+        assert_eq!(cfg.assert_admin(&signer), Err(AdminError::NotAdmin))
+    }
+
+    #[test]
+    fn assert_admin_rejects_unsigned() {
+        let cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, false);
+        assert_eq!(cfg.assert_admin(&signer), Err(AdminError::MissingSignature))
+    }
+
+    #[test]
+    fn assert_admin_rejects_renounced() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        cfg.renounce(&signer).unwrap();
+        assert_eq!(cfg.assert_admin(&signer), Err(AdminError::Renounced))
+    }
+
+    #[test]
+    fn transfer_updates_admin() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        let new_admin = acct(2, true);
+        cfg.transfer(&signer, AdminCandidate::Signer, &new_admin)
+            .unwrap();
+        assert_eq!(cfg.assert_admin(&new_admin), Ok(()));
+    }
+
+    #[test]
+    fn transfer_rejects_non_admin_caller() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(2, true);
+        let new_admin = acct(3, true);
+        assert_eq!(
+            cfg.transfer(&signer, AdminCandidate::Signer, &new_admin),
+            Err(AdminError::NotAdmin)
+        )
+    }
+
+    #[test]
+    fn transfer_rejects_unsigned_candidate() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        let new_admin = acct(2, false);
+        assert_eq!(
+            cfg.transfer(&signer, AdminCandidate::Signer, &new_admin),
+            Err(AdminError::InvalidCandidate)
+        );
+    }
+
+    #[test]
+    fn transfer_to_pda_validates_deployed() {
+        let signer = acct(1, true);
+        let mut cfg = AdminConfig::initialize(signer.account_id).unwrap();
+        let (program_id, seed) = ([7; 8], [9; 32]);
+        let pda_account = AccountWithMetadata {
+            account: Account {
+                program_owner: program_id,
+                balance: 1,
+                ..Account::default()
+            }, // deployed: program-owned
+            is_authorized: false,
+            account_id: AccountId::for_public_pda(&program_id, &PdaSeed::new(seed)), // the REAL derived address
+        };
+        let candidate = AdminCandidate::Pda { program_id, seed };
+        assert_eq!(cfg.transfer(&signer, candidate, &pda_account), Ok(()));
+        assert_eq!(cfg.admin, pda_account.account_id);
+    }
+
+    #[test]
+    fn transfer_rejects_pda_candidate_mismatch() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        let candidate = AdminCandidate::Pda {
+            program_id: [7; 8],
+            seed: [9; 32],
+        };
+        assert_eq!(
+            cfg.transfer(&signer, candidate, &acct(3, false)),
+            Err(AdminError::CandidateMismatch)
+        );
+    }
+
+    #[test]
+    fn transfer_rejects_undeployed_pda() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        let (program_id, seed) = ([7; 8], [9; 32]);
+        let pda_account = AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: false,
+            account_id: AccountId::for_public_pda(&program_id, &PdaSeed::new(seed)),
+        };
+        assert_eq!(
+            cfg.transfer(
+                &signer,
+                AdminCandidate::Pda { program_id, seed },
+                &pda_account
+            ),
+            Err(AdminError::UndeployedPda)
+        );
+    }
+
+    #[test]
+    fn transfer_rejects_funded_but_unclaimed_pda() {
+        // Anyone can send balance to the derived address. Without a program
+        // claim, program_owner stays default and the candidate must be
+        // rejected: a funded address is not a deployed PDA.
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        let (program_id, seed) = ([7; 8], [9; 32]);
+        let pda_account = AccountWithMetadata {
+            account: Account {
+                balance: 1,
+                ..Account::default()
+            }, // funded, but no program owns it
+            is_authorized: false,
+            account_id: AccountId::for_public_pda(&program_id, &PdaSeed::new(seed)),
+        };
+        assert_eq!(
+            cfg.transfer(
+                &signer,
+                AdminCandidate::Pda { program_id, seed },
+                &pda_account
+            ),
+            Err(AdminError::UndeployedPda)
+        );
+        assert_eq!(cfg.admin, AccountId::new([1; 32]));
+    }
+
+    #[test]
+    fn transfer_rejects_default_id_candidate() {
+        // The default AccountId is the renounced sentinel. Installing it via
+        // transfer would be a silent renounce, so validation rejects it.
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let current = acct(1, true);
+        let candidate_account = acct(0, true); // default AccountId, co-signed
+        assert_eq!(
+            cfg.transfer(&current, AdminCandidate::Signer, &candidate_account),
+            Err(AdminError::InvalidCandidate)
+        );
+        assert_eq!(cfg.admin, AccountId::new([1; 32]));
+    }
+
+    #[test]
+    fn renounce_zeros_admin() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        cfg.renounce(&signer).unwrap();
+        assert_eq!(cfg.admin, AccountId::default());
+    }
+
+    #[test]
+    fn renounce_reject_non_admin() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(2, true);
+        assert_eq!(cfg.renounce(&signer), Err(AdminError::NotAdmin));
+    }
+
+    #[test]
+    fn renounce_is_permanent() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        cfg.renounce(&signer).unwrap();
+        assert_eq!(
+            cfg.transfer(&signer, AdminCandidate::Signer, &signer),
+            Err(AdminError::Renounced)
+        )
+    }
+
+    #[test]
+    fn encode_decode_roundtrip() {
+        let cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let encoded = cfg.encode().unwrap();
+        let decoded = AdminConfig::decode(&encoded).unwrap();
+        assert_eq!(cfg, decoded);
+    }
+
+    #[test]
+    fn from_account_on_empty_data_returns_not_initialized() {
+        let account = acct(1, true);
+        assert_eq!(
+            AdminConfig::from_account(&account),
+            Err(AdminError::NotInitialized)
+        )
+    }
 
     #[test]
     fn admin_error_display_strings() {

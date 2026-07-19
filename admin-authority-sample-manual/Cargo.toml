@@ -1,7 +1,8 @@
 [package]
-name = "admin-authority-sample"
+name = "admin-authority-sample-manual"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 borsh = { version = "1", features = ["derive"] }
