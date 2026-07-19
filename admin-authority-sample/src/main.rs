@@ -13,6 +13,8 @@ mod admin_authority_sample {
     #[instruction]
     #[require_admin]
     pub fn update_value(
+        #[account(pda = literal("admin_config"))] admin_config: AccountWithMetadata,
+        #[account(signer)] caller: AccountWithMetadata,
         #[account(mut, pda = literal("program_config"))] mut config: AccountWithMetadata,
         new_value: u64,
     ) -> SpelResult {
@@ -25,7 +27,10 @@ mod admin_authority_sample {
             .map_err(|_| SpelError::SerializationError {
                 message: "data too large".into(),
             })?;
-        Ok(SpelOutput::execute(vec![config], vec![]))
+        Ok(SpelOutput::execute(
+            vec![admin_config, caller, config],
+            vec![],
+        ))
     }
 }
 

@@ -42,33 +42,44 @@ impl AdminCandidate {
     /// Both must agree before the address is trusted.
     ///
     /// Returns:
-    /// - `AdminError::InvalidCandidate` if `Signer` did not co-sign the tx.
+    /// - `AdminError::InvalidCandidate` if `Signer` did not co-sign the tx,
+    ///   or the resolved id is the default `AccountId` (the renounced
+    ///   sentinel; installing it would be a silent renounce).
     /// - `AdminError::CandidateMismatch` if a `Pda` claim does not derive to
     ///   `account.account_id` (wrong account attached to the claim).
-    /// - `AdminError::UndeployedPda` if the `Pda` derives correctly but the
-    ///   account is empty (setting it as admin would brick the program).
+    /// - `AdminError::UndeployedPda` if the `Pda` derives correctly but no
+    ///   program owns the account (`program_owner` is the default
+    ///   `ProgramId`). Anyone can fund the derived address; only the owning
+    ///   program's claim stamps `program_owner`, so a funded-but-unclaimed
+    ///   account is not a real PDA and would brick the program.
     pub fn validate_with_account(
         &self,
         account: &AccountWithMetadata,
     ) -> Result<AccountId, AdminError> {
-        match self {
+        let resolved = match self {
             AdminCandidate::Signer => {
                 if !account.is_authorized {
                     return Err(AdminError::InvalidCandidate);
                 }
-                Ok(account.account_id)
+                account.account_id
             }
             AdminCandidate::Pda { program_id, seed } => {
                 let expected = AccountId::for_public_pda(program_id, &PdaSeed::new(*seed));
                 if account.account_id != expected {
                     return Err(AdminError::CandidateMismatch);
                 }
-                if account.account == Account::default() {
+                if account.account == Account::default()
+                    || account.account.program_owner == ProgramId::default()
+                {
                     return Err(AdminError::UndeployedPda);
                 }
-                Ok(account.account_id)
+                account.account_id
             }
+        };
+        if resolved == AccountId::default() {
+            return Err(AdminError::InvalidCandidate);
         }
+        Ok(resolved)
     }
 }
 
@@ -232,9 +243,12 @@ pub enum AdminError {
     NotAdmin,
     /// Signer is not authorized (no valid signature in the WitnessSet).
     MissingSignature,
-    /// `AdminCandidate::Signer` paired with a default `AccountId`.
+    /// Candidate failed validation: `Signer` did not co-sign, or the
+    /// resolved id is the default `AccountId` (installing it would be a
+    /// silent renounce).
     InvalidCandidate,
-    /// `AdminCandidate::Pda` references an undeployed PDA.
+    /// `AdminCandidate::Pda` references an account no program owns
+    /// (unclaimed or merely funded).
     UndeployedPda,
     /// Candidate's derived address does not match `new_admin_account.account_id`.
     CandidateMismatch,
@@ -438,9 +452,10 @@ mod tests {
         let (program_id, seed) = ([7; 8], [9; 32]);
         let pda_account = AccountWithMetadata {
             account: Account {
+                program_owner: program_id,
                 balance: 1,
                 ..Account::default()
-            }, // deployed: non-default
+            }, // deployed: program-owned
             is_authorized: false,
             account_id: AccountId::for_public_pda(&program_id, &PdaSeed::new(seed)), // the REAL derived address
         };
@@ -481,6 +496,47 @@ mod tests {
             ),
             Err(AdminError::UndeployedPda)
         );
+    }
+
+    #[test]
+    fn transfer_rejects_funded_but_unclaimed_pda() {
+        // Anyone can send balance to the derived address. Without a program
+        // claim, program_owner stays default and the candidate must be
+        // rejected: a funded address is not a deployed PDA.
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let signer = acct(1, true);
+        let (program_id, seed) = ([7; 8], [9; 32]);
+        let pda_account = AccountWithMetadata {
+            account: Account {
+                balance: 1,
+                ..Account::default()
+            }, // funded, but no program owns it
+            is_authorized: false,
+            account_id: AccountId::for_public_pda(&program_id, &PdaSeed::new(seed)),
+        };
+        assert_eq!(
+            cfg.transfer(
+                &signer,
+                AdminCandidate::Pda { program_id, seed },
+                &pda_account
+            ),
+            Err(AdminError::UndeployedPda)
+        );
+        assert_eq!(cfg.admin, AccountId::new([1; 32]));
+    }
+
+    #[test]
+    fn transfer_rejects_default_id_candidate() {
+        // The default AccountId is the renounced sentinel. Installing it via
+        // transfer would be a silent renounce, so validation rejects it.
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        let current = acct(1, true);
+        let candidate_account = acct(0, true); // default AccountId, co-signed
+        assert_eq!(
+            cfg.transfer(&current, AdminCandidate::Signer, &candidate_account),
+            Err(AdminError::InvalidCandidate)
+        );
+        assert_eq!(cfg.admin, AccountId::new([1; 32]));
     }
 
     #[test]

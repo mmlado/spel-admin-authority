@@ -14,8 +14,8 @@ mod admin_authority_sample_manual {
     #[instruction]
     pub fn initialize(
         #[account(init, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
-        #[account(init, pda = literal("program_config"))] prog_config: AccountWithMetadata,
         #[account(signer)] caller: AccountWithMetadata,
+        #[account(init, pda = literal("program_config"))] prog_config: AccountWithMetadata,
     ) -> SpelResult {
         AdminConfig::bootstrap(
             &mut admin_config,
@@ -32,8 +32,8 @@ mod admin_authority_sample_manual {
     #[require_admin]
     pub fn update_value(
         #[account(pda = literal("admin_config"))] admin_config: AccountWithMetadata,
-        #[account(mut, pda = literal("program_config"))] mut config: AccountWithMetadata,
         #[account(signer)] caller: AccountWithMetadata,
+        #[account(mut, pda = literal("program_config"))] mut config: AccountWithMetadata,
         new_value: u64,
     ) -> SpelResult {
         let state = ProgramConfig { value: new_value };
@@ -97,7 +97,7 @@ mod test {
         AdminConfig::bootstrap(&mut admin_config, AdminCandidate::Signer, &caller).unwrap();
         let config = acct(5, false);
 
-        let output = admin_authority_sample_manual::update_value(admin_config, config, caller, 42)
+        let output = admin_authority_sample_manual::update_value(admin_config, caller, config, 42)
             .expect("admin call must succeed");
 
         let post = &output.post_states[1];
@@ -115,7 +115,12 @@ mod test {
 
         let err = admin_authority_sample_manual::update_value(admin_config, caller, config, 42)
             .expect_err("signer is not the current admin");
-        assert!(matches!(err, SpelError::Unauthorized { .. }));
+        match err {
+            SpelError::Unauthorized { message } => {
+                assert_eq!(message, "signer is not the current admin")
+            }
+            other => panic!("expected Unauthorized, got {other:?}"),
+        }
     }
 
     #[test]
@@ -127,7 +132,12 @@ mod test {
 
         let err = admin_authority_sample_manual::update_value(admin_config, caller, config, 42)
             .expect_err("admin authority not initialized");
-        assert!(matches!(err, SpelError::Unauthorized { .. }));
+        match err {
+            SpelError::Unauthorized { message } => {
+                assert_eq!(message, "admin authority not initialized")
+            }
+            other => panic!("expected Unauthorized, got {other:?}"),
+        }
     }
 
     #[test]
@@ -141,7 +151,12 @@ mod test {
 
         let err = admin_authority_sample_manual::update_value(admin_config, caller, config, 42)
             .expect_err("admin authority renounced");
-        assert!(matches!(err, SpelError::Unauthorized { .. }));
+        match err {
+            SpelError::Unauthorized { message } => {
+                assert_eq!(message, "admin authority renounced")
+            }
+            other => panic!("expected Unauthorized, got {other:?}"),
+        }
     }
 
     #[test]

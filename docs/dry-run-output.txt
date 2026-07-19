@@ -9,10 +9,10 @@ Program ID: abababababababababababababababababababababababababababababababab
 Instruction: update_value
 
 Accounts:
-  PDA admin_config → DRFkz79ZpGcSnvig5YDDGUBReVXHusPrqaHZy9MmzJkv
+  PDA admin_config → 23czDuwgR21xjdqpsf9wGRpZ86LaiAvZ4ZbvDCxz7B96
     seeds: [program_id, "admin_config"]
   caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
-  PDA config → 9so3zxJgZJn8e5zvyLcCHSZYivKrmCF9rfGV9qfArdCU [writable]
+  PDA config → 3oLE2nK8zsrUzkNDfK3LqFuLidpchRMPoytsmbcHFQwY [writable]
     seeds: [program_id, "program_config"]
 
 Arguments:
@@ -33,7 +33,7 @@ Program ID: abababababababababababababababababababababababababababababababab
 Instruction: admin_renounce
 
 Accounts:
-  PDA config → DRFkz79ZpGcSnvig5YDDGUBReVXHusPrqaHZy9MmzJkv [writable]
+  PDA config → 23czDuwgR21xjdqpsf9wGRpZ86LaiAvZ4ZbvDCxz7B96 [writable]
     seeds: [program_id, "admin_config"]
   caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
 
@@ -54,7 +54,7 @@ Program ID: abababababababababababababababababababababababababababababababab
 Instruction: admin_initialize
 
 Accounts:
-  PDA config → DRFkz79ZpGcSnvig5YDDGUBReVXHusPrqaHZy9MmzJkv [writable]
+  PDA config → 23czDuwgR21xjdqpsf9wGRpZ86LaiAvZ4ZbvDCxz7B96 [writable]
     seeds: [program_id, "admin_config"]
   caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
 
@@ -75,7 +75,7 @@ Program ID: abababababababababababababababababababababababababababababababab
 Instruction: admin_transfer
 
 Accounts:
-  PDA config → DRFkz79ZpGcSnvig5YDDGUBReVXHusPrqaHZy9MmzJkv [writable]
+  PDA config → 23czDuwgR21xjdqpsf9wGRpZ86LaiAvZ4ZbvDCxz7B96 [writable]
     seeds: [program_id, "admin_config"]
   caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
   new_admin_account → 0x2222222222222222222222222222222222222222222222222222222222222222
@@ -98,7 +98,7 @@ Program ID: abababababababababababababababababababababababababababababababab
 Instruction: admin_transfer
 
 Accounts:
-  PDA config → DRFkz79ZpGcSnvig5YDDGUBReVXHusPrqaHZy9MmzJkv [writable]
+  PDA config → 23czDuwgR21xjdqpsf9wGRpZ86LaiAvZ4ZbvDCxz7B96 [writable]
     seeds: [program_id, "admin_config"]
   caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
   new_admin_account → 0x2222222222222222222222222222222222222222222222222222222222222222

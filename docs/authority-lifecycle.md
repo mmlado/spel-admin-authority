@@ -63,7 +63,7 @@ Initialized → Initialized (new admin)
 
 **Inputs:** `caller: AccountWithMetadata` (the current admin, signing), `new_admin_account: AccountWithMetadata`, `new_admin: AdminCandidate`.
 
-**Validations:** the config must not be Renounced, `caller.account_id` must equal the stored `admin`, `caller.is_authorized` must be true, and `AdminCandidate::validate_with_account(new_admin_account)` must succeed (either a co-signed signer or a deployed PDA whose address matches the derived one).
+**Validations:** the config must not be Renounced, `caller.account_id` must equal the stored `admin`, `caller.is_authorized` must be true, and `AdminCandidate::validate_with_account(new_admin_account)` must succeed (either a co-signed signer or a program-owned PDA whose address matches the derived one). A candidate resolving to the default `AccountId` is rejected as `InvalidCandidate`: that value is the renounced sentinel, and installing it would be a silent renounce.
 
 **Failure modes:** `AdminError::NotAdmin`, `AdminError::Renounced`, `AdminError::InvalidCandidate`, `AdminError::UndeployedPda`, `AdminError::CandidateMismatch`.
 
@@ -109,7 +109,7 @@ The `is_authorized` flag on `AccountWithMetadata` is set by LEZ during transacti
 
 For `AdminCandidate::Signer`, `new_admin_account.is_authorized` must also be true. Without this, an attacker could name an arbitrary AccountId as the new admin. Requiring a co-signature proves the new admin's keyholder consents to the transfer.
 
-For `AdminCandidate::Pda`, signatures aren't applicable. PDAs cannot sign. The library proves the candidate by deriving the address from `(program_id, seed)`, checking it matches `new_admin_account.account_id`, and checking the PDA has been deployed (`account != Account::default()` and `program_owner != DEFAULT_PROGRAM_ID`).
+For `AdminCandidate::Pda`, signatures aren't applicable. PDAs cannot sign. The library proves the candidate by deriving the address from `(program_id, seed)`, checking it matches `new_admin_account.account_id`, and checking the PDA is program-owned (`program_owner` is not the default `ProgramId`; an untouched account is also rejected). Anyone can fund the derived address, but only the owning program's claim stamps `program_owner`, so a funded-but-unclaimed account is rejected as undeployed.
 
 ## Program-as-admin via CPI
 
