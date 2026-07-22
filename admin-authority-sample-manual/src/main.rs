@@ -52,7 +52,7 @@ mod admin_authority_sample_manual {
     }
 
     #[instruction]
-    #[require_admin(config = config)]
+    #[require_admin(admin_config = config)]
     pub fn admin_transfer(
         #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
         #[account(signer)] caller: AccountWithMetadata,
@@ -67,7 +67,7 @@ mod admin_authority_sample_manual {
     }
 
     #[instruction]
-    #[require_admin(config = config)]
+    #[require_admin(admin_config = config)]
     pub fn admin_renounce(
         #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
         #[account(signer)] caller: AccountWithMetadata,

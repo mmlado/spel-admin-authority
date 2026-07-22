@@ -77,7 +77,7 @@ pub fn require_admin(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     let mut config_ident = format_ident!("admin_config");
-    let mut signer_ident = format_ident!("caller");
+    let mut caller_ident = format_ident!("caller");
 
     for pair in args {
         let value_ident = match &pair.value {
@@ -89,14 +89,14 @@ pub fn require_admin(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         };
 
-        if pair.path.is_ident("config") {
+        if pair.path.is_ident("admin_config") {
             config_ident = value_ident;
-        } else if pair.path.is_ident("signer") {
-            signer_ident = value_ident;
+        } else if pair.path.is_ident("caller") {
+            caller_ident = value_ident;
         } else {
             return syn::Error::new_spanned(
                 &pair.path,
-                "unknown key; expected `config` or `signer`",
+                "unknown key; expected `admin_config` or `caller`",
             )
             .to_compile_error()
             .into();
@@ -107,7 +107,7 @@ pub fn require_admin(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let prologue: syn::Stmt = parse_quote! {{
         let __admin_cfg = ::admin_authority::AdminConfig::from_account(&#config_ident)?;
-        __admin_cfg.assert_admin(&#signer_ident)?;
+        __admin_cfg.assert_admin(&#caller_ident)?;
     }};
 
     func.block.stmts.insert(0, prologue);
