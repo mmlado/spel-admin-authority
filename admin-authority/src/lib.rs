@@ -8,7 +8,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use spel_framework::prelude::*;
 
-use authority::{AuthoritySlot, AuthorityCandidate, AuthorityError};
+use authority::{AuthorityCandidate, AuthorityError, AuthoritySlot};
 
 pub use admin_authority_macros::{admin_authority, instruction, require_admin};
 
@@ -21,6 +21,9 @@ extern crate self as admin_authority;
 /// carries the chain-state evidence.
 pub type AdminCandidate = AuthorityCandidate;
 
+/// Borsh-encoded size of the config, the embedded window width.
+pub const ENCODED_LEN: usize = AuthoritySlot::ENCODED_LEN;
+
 /// On-chain admin authority state for a single program.
 ///
 /// Stored in the program's Config PDA at `(program_id, "admin_config")`.
@@ -29,7 +32,7 @@ pub type AdminCandidate = AuthorityCandidate;
 /// `AccountId::default()` sentinel marks the renounced state. The borsh
 /// layout is a single 32-byte `AccountId`, unchanged by the extraction.
 #[account_type]
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct AdminConfig {
     slot: AuthoritySlot,
 }
@@ -40,7 +43,9 @@ impl AdminConfig {
     /// Rejects `AccountId::default()` as the admin since that value is the
     /// reserved sentinel for the renounced state.
     pub fn initialize(admin: AccountId) -> Result<Self, AdminError> {
-        Ok(Self { slot: AuthoritySlot::initialize(admin)? })
+        Ok(Self {
+            slot: AuthoritySlot::initialize(admin)?,
+        })
     }
 
     /// Asserts that the supplied signer is the current admin.
@@ -73,10 +78,40 @@ impl AdminConfig {
         Self::try_from_slice(data).map_err(|_| AdminError::DecodingFailed)
     }
 
+    /// Strict decode of the config's window at `offset`.
+    ///
+    /// Keeps the three-way discrimination: empty data means the
+    /// embedding account does not exist yet (`NotInitialized`);
+    /// non-empty data too short for the window is `SlotOutOfBounds`,
+    /// a layout error. Dedicated mode is the degenerate case
+    /// `offset = 0` over the Config PDA.
+    ///
+    /// # Errors
+    ///
+    /// `AdminError::NotInitialized` on empty data,
+    /// `AdminError::SlotOutOfBounds` when the window does not fit.
+    pub fn decode_at(data: &[u8], offset: usize) -> Result<Self, AdminError> {
+        if data.is_empty() {
+            return Err(AdminError::NotInitialized);
+        }
+        Ok(Self {
+            slot: AuthoritySlot::read_at(data, offset)?,
+        })
+    }
+
     /// Loads config from an account's data field. Convenience wrapper over
     /// [`AdminConfig::decode`].
     pub fn from_account(account: &AccountWithMetadata) -> Result<Self, AdminError> {
         Self::decode(&account.account.data)
+    }
+
+    /// Loads the config from an account's data at `offset`. Convenience
+    /// wrapper over [`AdminConfig::decode_at`].
+    pub fn from_account_at(
+        account: &AccountWithMetadata,
+        offset: usize,
+    ) -> Result<Self, AdminError> {
+        Self::decode_at(&account.account.data, offset)
     }
 
     /// Replaces the current admin after authorising the caller and validating
@@ -116,6 +151,25 @@ impl AdminConfig {
         Ok(())
     }
 
+    /// Splices only the config's window at `offset` into the account's
+    /// data, leaving every surrounding byte untouched.
+    ///
+    /// # Errors
+    ///
+    /// `AdminError:SlotOutOfBounds` when the window does not fit.
+    pub fn write_to_at(
+        &self,
+        account: &mut AccountWithMetadata,
+        offset: usize,
+    ) -> Result<(), AdminError> {
+        let mut bytes: Vec<u8> = account.account.data.to_vec();
+        self.slot.write_at(&mut bytes, offset)?;
+        account.account.data = bytes
+            .try_into()
+            .map_err(|_| AdminError::AccountDataTooLarge)?;
+        Ok(())
+    }
+
     /// Validates a candidate, builds a fresh config, and writes it to the PDA.
     ///
     /// Used by `admin_initialize` and by consumers doing single-tx deploy +
@@ -130,6 +184,27 @@ impl AdminConfig {
         state.write_to(config_account)
     }
 
+    /// Validates a candidate, builds a fresh config, and splices it in
+    /// at `offset`. The embedded-mode bootstrap: the consumer's
+    /// account-creating instruction calls this after writing its own
+    /// state, so the slot is born initialized.
+    ///
+    /// # Errors
+    ///
+    /// Candidate validation errors, plus `SlotOufOfBounds` when the
+    /// account's data does not cover the window (write the full
+    /// consumer struct before bootstrapping).
+    pub fn bootstrap_at(
+        config_account: &mut AccountWithMetadata,
+        offset: usize,
+        new_admin: AdminCandidate,
+        new_admin_account: &AccountWithMetadata,
+    ) -> Result<(), AdminError> {
+        let resolved = new_admin.validate(new_admin_account)?;
+        let state = Self::initialize(resolved)?;
+        state.write_to_at(config_account, offset)
+    }
+
     /// Loads config from account, transfers admin, writes back.
     pub fn perform_transfer(
         config_account: &mut AccountWithMetadata,
@@ -137,9 +212,20 @@ impl AdminConfig {
         candidate: AdminCandidate,
         new_admin_account: &AccountWithMetadata,
     ) -> Result<(), AdminError> {
-        let mut state = Self::from_account(config_account)?;
+        Self::perform_transfer_at(config_account, 0, current, candidate, new_admin_account)
+    }
+
+    /// Loads config from account, transfers admin, writes back.
+    pub fn perform_transfer_at(
+        config_account: &mut AccountWithMetadata,
+        offset: usize,
+        current: &AccountWithMetadata,
+        candidate: AdminCandidate,
+        new_admin_account: &AccountWithMetadata,
+    ) -> Result<(), AdminError> {
+        let mut state = Self::from_account_at(config_account, offset)?;
         state.transfer(current, candidate, new_admin_account)?;
-        state.write_to(config_account)
+        state.write_to_at(config_account, offset)
     }
 
     /// Loads config from account, renounce admin, writes back.
@@ -150,6 +236,17 @@ impl AdminConfig {
         let mut state = Self::from_account(config_account)?;
         state.renounce(current)?;
         state.write_to(config_account)
+    }
+
+    /// Loads config from account, renounce admin, writes back.
+    pub fn perform_renounce_at(
+        config_account: &mut AccountWithMetadata,
+        offset: usize,
+        current: &AccountWithMetadata,
+    ) -> Result<(), AdminError> {
+        let mut state = Self::from_account_at(config_account, offset)?;
+        state.renounce(current)?;
+        state.write_to_at(config_account, offset)
     }
 }
 
@@ -181,21 +278,26 @@ pub enum AdminError {
     DecodingFailed,
     /// Error in writing data
     AccountDataTooLarge,
+    /// An embedded-slot window `[offset..offset+32)` does not fit inside
+    /// the account's data. Layout error: the declared offset and the
+    /// account's actual size disagree.
+    SlotOutOfBounds,
 }
 
 impl core::fmt::Display for AdminError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            AdminError::NotInitialized      => write!(f, "admin authority not initialized"),
-            AdminError::Renounced           => write!(f, "admin authority renounced"),
-            AdminError::NotAdmin            => write!(f, "signer is not the current admin"),
-            AdminError::MissingSignature    => write!(f, "admin signature missing"),
-            AdminError::InvalidCandidate    => write!(f, "invalid admin candidate"),
-            AdminError::UndeployedPda       => write!(f, "candidate PDA is not deployed"),
-            AdminError::CandidateMismatch   => write!(f, "candidate address mismatch"),
-            AdminError::EncodingFailed      => write!(f, "AdminConfig encoding failed"),
-            AdminError::DecodingFailed      => write!(f, "AdminConfig decoding failed"),
+            AdminError::NotInitialized => write!(f, "admin authority not initialized"),
+            AdminError::Renounced => write!(f, "admin authority renounced"),
+            AdminError::NotAdmin => write!(f, "signer is not the current admin"),
+            AdminError::MissingSignature => write!(f, "admin signature missing"),
+            AdminError::InvalidCandidate => write!(f, "invalid admin candidate"),
+            AdminError::UndeployedPda => write!(f, "candidate PDA is not deployed"),
+            AdminError::CandidateMismatch => write!(f, "candidate address mismatch"),
+            AdminError::EncodingFailed => write!(f, "AdminConfig encoding failed"),
+            AdminError::DecodingFailed => write!(f, "AdminConfig decoding failed"),
             AdminError::AccountDataTooLarge => write!(f, "AdminConfig too large for account data"),
+            AdminError::SlotOutOfBounds => write!(f, "embedded slot window out of bounds"),
         }
     }
 }
@@ -211,12 +313,13 @@ impl From<AdminError> for SpelError {
 impl From<AuthorityError> for AdminError {
     fn from(e: AuthorityError) -> Self {
         match e {
-            AuthorityError::InvalidCandidate    => AdminError::InvalidCandidate,
-            AuthorityError::UndeployedPda       => AdminError::UndeployedPda,
-            AuthorityError::CandidateMismatch   => AdminError::CandidateMismatch,
-            AuthorityError::NotHolder           => AdminError::NotAdmin,
-            AuthorityError::Renounced           => AdminError::Renounced,
-            AuthorityError::MissingSignature    => AdminError::MissingSignature,
+            AuthorityError::InvalidCandidate => AdminError::InvalidCandidate,
+            AuthorityError::UndeployedPda => AdminError::UndeployedPda,
+            AuthorityError::CandidateMismatch => AdminError::CandidateMismatch,
+            AuthorityError::NotHolder => AdminError::NotAdmin,
+            AuthorityError::Renounced => AdminError::Renounced,
+            AuthorityError::MissingSignature => AdminError::MissingSignature,
+            AuthorityError::SlotOutOfBounds => AdminError::SlotOutOfBounds,
         }
     }
 }
@@ -269,8 +372,9 @@ pub fn admin_transfer(
     #[account(signer)] caller: AccountWithMetadata,
     new_admin_account: AccountWithMetadata,
     new_admin: ::admin_authority::AdminCandidate,
+    offset: usize,
 ) -> SpelResult {
-    AdminConfig::perform_transfer(&mut config, &caller, new_admin, &new_admin_account)?;
+    AdminConfig::perform_transfer_at(&mut config, offset, &caller, new_admin, &new_admin_account)?;
     Ok(SpelOutput::execute(
         vec![config.account, caller.account, new_admin_account.account],
         vec![],
@@ -286,8 +390,9 @@ pub fn admin_transfer(
 pub fn admin_renounce(
     #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
+    offset: usize,
 ) -> SpelResult {
-    AdminConfig::perform_renounce(&mut config, &caller)?;
+    AdminConfig::perform_renounce_at(&mut config, offset, &caller)?;
     Ok(SpelOutput::execute(
         vec![config.account, caller.account],
         vec![],
@@ -304,6 +409,121 @@ mod tests {
             is_authorized: signed,
             account_id: AccountId::new([id_byte; 32]),
         }
+    }
+
+    // An account whose data is `len` bytes of 0xAA sentinel.
+    fn sentinel_acct(len: usize) -> AccountWithMetadata {
+        AccountWithMetadata {
+            account: Account {
+                data: vec![0xAA; len].try_into().unwrap(),
+                ..Account::default()
+            },
+            is_authorized: false,
+            account_id: AccountId::new([9; 32]),
+        }
+    }
+
+    #[test]
+    fn perform_transfer_at_preserves_neighbors_and_installs_new_admin() {
+        let mut config_account = sentinel_acct(72);
+        let old_admin = acct(1, true);
+        let new_admin = acct(2, true);
+        AdminConfig::bootstrap_at(&mut config_account, 8, AdminCandidate::Signer, &old_admin)
+            .expect("bootstrap must succeed");
+
+        AdminConfig::perform_transfer_at(
+            &mut config_account,
+            8,
+            &old_admin,
+            AdminCandidate::Signer,
+            &new_admin,
+        )
+        .expect("transfer at offset 8 must succeed");
+
+        let data = &config_account.account.data;
+        assert!(data[..8].iter().all(|b| *b == 0xAA), "prefix trampled");
+        assert!(data[40..].iter().all(|b| *b == 0xAA), "suffix trampled");
+        let cfg = AdminConfig::from_account_at(&config_account, 8).unwrap();
+        assert!(cfg.assert_admin(&new_admin).is_ok());
+        assert_eq!(cfg.assert_admin(&old_admin), Err(AdminError::NotAdmin));
+    }
+
+    #[test]
+    fn perform_renounce_at_preserves_neighbors_and_is_terminal() {
+        let mut config_account = sentinel_acct(72);
+        let admin = acct(1, true);
+        AdminConfig::bootstrap_at(&mut config_account, 8, AdminCandidate::Signer, &admin)
+            .expect("bootstrap must succeed");
+
+        AdminConfig::perform_renounce_at(&mut config_account, 8, &admin)
+            .expect("renounce at offset 8 must succeed");
+
+        let data = &config_account.account.data;
+        assert!(data[..8].iter().all(|b| *b == 0xAA), "prefix trampled");
+        assert!(data[40..].iter().all(|b| *b == 0xAA), "suffix trampled");
+        let cfg = AdminConfig::from_account_at(&config_account, 8).unwrap();
+        assert_eq!(cfg.assert_admin(&admin), Err(AdminError::Renounced));
+    }
+
+    #[test]
+    fn dedicated_perform_transfer_delegates_to_offset_zero() {
+        let mut config_account = acct(9, false);
+        let old_admin = acct(1, true);
+        let new_admin = acct(2, true);
+        AdminConfig::bootstrap(&mut config_account, AdminCandidate::Signer, &old_admin)
+            .expect("dedicated bootstrap must succeed");
+        AdminConfig::perform_transfer(
+            &mut config_account,
+            &old_admin,
+            AdminCandidate::Signer,
+            &new_admin,
+        )
+        .expect("dedicated transfer must succeed");
+        let cfg = AdminConfig::from_account(&config_account).unwrap();
+        assert!(cfg.assert_admin(&new_admin).is_ok());
+    }
+
+    #[test]
+    fn bootstrap_at_splices_at_offset_preserving_neighbors() {
+        let mut config_account = sentinel_acct(72);
+        let signer = acct(1, true);
+        AdminConfig::bootstrap_at(&mut config_account, 8, AdminCandidate::Signer, &signer)
+            .expect("bootstrap at offset 8 must succeed");
+        let data = &config_account.account.data;
+        assert!(data[..8].iter().all(|b| *b == 0xAA), "prefix trampled");
+        assert!(data[40..].iter().all(|b| *b == 0xAA), "suffix trampled");
+        let cfg = AdminConfig::from_account_at(&config_account, 8).unwrap();
+        assert!(cfg.assert_admin(&signer).is_ok());
+    }
+
+    #[test]
+    fn decode_at_empty_data_is_not_initialized() {
+        assert_eq!(
+            AdminConfig::decode_at(&[], 8),
+            Err(AdminError::NotInitialized)
+        );
+    }
+
+    #[test]
+    fn decode_at_short_data_is_slot_out_of_bounds() {
+        let data = [0u8; 20];
+        assert_eq!(
+            AdminConfig::decode_at(&data, 0),
+            Err(AdminError::SlotOutOfBounds)
+        );
+    }
+
+    #[test]
+    fn bootstrap_at_on_empty_account_is_slot_out_of_bounds() {
+        // The consumer forgot to write their struct before bootstrapping:
+        // empty data cannot cover the window, loud error instead of a
+        // silent resize.
+        let mut config_account = acct(7, false);
+        let signer = acct(1, true);
+        assert_eq!(
+            AdminConfig::bootstrap_at(&mut config_account, 32, AdminCandidate::Signer, &signer),
+            Err(AdminError::SlotOutOfBounds)
+        );
     }
 
     #[test]

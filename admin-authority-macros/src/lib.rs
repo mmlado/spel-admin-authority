@@ -78,8 +78,25 @@ pub fn require_admin(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let mut config_ident = format_ident!("admin_config");
     let mut caller_ident = format_ident!("caller");
+    let mut offset: usize = 0;
 
     for pair in args {
+        if pair.path.is_ident("offset") {
+            let Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Int(i),
+                ..
+            }) = &pair.value
+            else {
+                return syn::Error::new_spanned(&pair.value, "offset must be an integer literal")
+                    .to_compile_error()
+                    .into();
+            };
+            offset = match i.base10_parse::<usize>() {
+                Ok(v) => v,
+                Err(e) => return syn::Error::new_spanned(i, e).to_compile_error().into(),
+            };
+            continue;
+        }
         let value_ident = match &pair.value {
             Expr::Path(p) if p.path.get_ident().is_some() => p.path.get_ident().unwrap().clone(),
             other => {
@@ -96,7 +113,7 @@ pub fn require_admin(attr: TokenStream, item: TokenStream) -> TokenStream {
         } else {
             return syn::Error::new_spanned(
                 &pair.path,
-                "unknown key; expected `admin_config` or `caller`",
+                "unknown key; expected `admin_config` or `caller` or `offset`",
             )
             .to_compile_error()
             .into();
@@ -106,7 +123,7 @@ pub fn require_admin(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut func: syn::ItemFn = parse_macro_input!(item as ItemFn);
 
     let prologue: syn::Stmt = parse_quote! {{
-        let __admin_cfg = ::admin_authority::AdminConfig::from_account(&#config_ident)?;
+        let __admin_cfg = ::admin_authority::AdminConfig::from_account_at(&#config_ident, #offset)?;
         __admin_cfg.assert_admin(&#caller_ident)?;
     }};
 

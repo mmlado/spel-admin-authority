@@ -7,9 +7,28 @@ license.workspace = true
 [package.metadata.spel]
 extension_attr = "admin_authority"
 
+[[package.metadata.spel.inject]]
+wrapper = "require_admin"
+
+  [[package.metadata.spel.inject.account]]
+  name = "admin_config"
+  seed = { const = "admin_config" }
+
+  [[package.metadata.spel.inject.account]]
+  name = "caller"
+  signer = true
+
+[package.metadata.spel.embedded]
+skip = ["admin_initialize"]
+
+[[package.metadata.spel.bound_args]]
+arg = "offset"
+from = "offset"
+default = 0
+
 [dependencies]
 borsh = { version = "1", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-spel-framework = { git = "https://github.com/mmlado/spel.git", rev = "c701b7836494f73be46c4e38d8fb1e27d0dfe6f6" }
+spel-framework = { git = "https://github.com/mmlado/spel.git", branch = "feat/admin_authority_m2_5" }
 admin-authority-macros  = { path = "../admin-authority-macros"}
-authority = { git = "https://github.com/mmlado/spel-authority.git", rev = "b106e00eb85b51de6c42d7d9f24a624f60d6a38f", package = "spel-authority" }
+authority = { git = "https://github.com/mmlado/spel-authority.git", branch = "m2_5", package = "spel-authority" }

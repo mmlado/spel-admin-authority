@@ -28,7 +28,10 @@ fn idl_contains_user_instr_and_admin_trio() {
     assert!(
         idl.types.iter().any(|t| t.name == "AdminCandidate"),
         "types array must carry AdminCandidate (alias resolution), got: {:?}",
-        idl.types.iter().map(|t| t.name.as_str()).collect::<Vec<_>>()
+        idl.types
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect::<Vec<_>>()
     );
 
     let names: Vec<&str> = idl.instructions.iter().map(|i| i.name.as_str()).collect();
