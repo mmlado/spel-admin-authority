@@ -10,7 +10,7 @@ dependencies = [
  "borsh",
  "serde",
  "spel-authority",
- "spel-framework 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
+ "spel-framework",
 ]
 
 [[package]]
@@ -30,8 +30,8 @@ dependencies = [
  "borsh",
  "lee_core",
  "serde",
- "spel-framework 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
- "spel-framework-core 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
+ "spel-framework",
+ "spel-framework-core",
 ]
 
 [[package]]
@@ -42,8 +42,8 @@ dependencies = [
  "borsh",
  "lee_core",
  "serde",
- "spel-framework 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
- "spel-framework-core 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
+ "spel-framework",
+ "spel-framework-core",
 ]
 
 [[package]]
@@ -54,8 +54,8 @@ dependencies = [
  "borsh",
  "lee_core",
  "serde",
- "spel-framework 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
- "spel-framework-core 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
+ "spel-framework",
+ "spel-framework-core",
 ]
 
 [[package]]
@@ -1839,23 +1839,11 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 [[package]]
 name = "spel-authority"
 version = "0.1.0"
-source = "git+https://github.com/mmlado/spel-authority.git?rev=60f3e5a854d822270ee5be77ec704945a559a313#60f3e5a854d822270ee5be77ec704945a559a313"
+source = "git+https://github.com/mmlado/spel-authority.git?rev=8a20fe068816d6a21c19b0685bf74530e6217c75#8a20fe068816d6a21c19b0685bf74530e6217c75"
 dependencies = [
  "borsh",
  "serde",
- "spel-framework 0.5.0 (git+https://github.com/mmlado/spel.git?branch=feat%2Fwrap_instructions_m2)",
-]
-
-[[package]]
-name = "spel-framework"
-version = "0.5.0"
-source = "git+https://github.com/mmlado/spel.git?branch=feat%2Fwrap_instructions_m2#c701b7836494f73be46c4e38d8fb1e27d0dfe6f6"
-dependencies = [
- "borsh",
- "lee_core",
- "serde_json",
- "spel-framework-core 0.5.0 (git+https://github.com/mmlado/spel.git?branch=feat%2Fwrap_instructions_m2)",
- "spel-framework-macros 0.5.0 (git+https://github.com/mmlado/spel.git?branch=feat%2Fwrap_instructions_m2)",
+ "spel-framework",
 ]
 
 [[package]]
@@ -1866,25 +1854,8 @@ dependencies = [
  "borsh",
  "lee_core",
  "serde_json",
- "spel-framework-core 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
- "spel-framework-macros 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
-]
-
-[[package]]
-name = "spel-framework-core"
-version = "0.5.0"
-source = "git+https://github.com/mmlado/spel.git?branch=feat%2Fwrap_instructions_m2#c701b7836494f73be46c4e38d8fb1e27d0dfe6f6"
-dependencies = [
- "base58",
- "borsh",
- "lee_core",
- "proc-macro2",
- "serde",
- "serde_json",
- "sha2",
- "syn 2.0.119",
- "thiserror 1.0.69",
- "toml",
+ "spel-framework-core",
+ "spel-framework-macros",
 ]
 
 [[package]]
@@ -1907,26 +1878,13 @@ dependencies = [
 [[package]]
 name = "spel-framework-macros"
 version = "0.5.0"
-source = "git+https://github.com/mmlado/spel.git?branch=feat%2Fwrap_instructions_m2#c701b7836494f73be46c4e38d8fb1e27d0dfe6f6"
-dependencies = [
- "proc-macro2",
- "quote",
- "serde_json",
- "sha2",
- "spel-framework-core 0.5.0 (git+https://github.com/mmlado/spel.git?branch=feat%2Fwrap_instructions_m2)",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "spel-framework-macros"
-version = "0.5.0"
 source = "git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d#752d23b01f3d84c03656445d9de43335b7bc780d"
 dependencies = [
  "proc-macro2",
  "quote",
  "serde_json",
  "sha2",
- "spel-framework-core 0.5.0 (git+https://github.com/mmlado/spel.git?rev=752d23b01f3d84c03656445d9de43335b7bc780d)",
+ "spel-framework-core",
  "syn 2.0.119",
 ]
 
