@@ -368,15 +368,15 @@ pub fn admin_initialize(
 /// acceptable because such a transfer would be a no-op.
 #[instruction]
 pub fn admin_transfer(
-    #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
+    #[account(mut, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
     new_admin_account: AccountWithMetadata,
     new_admin: ::admin_authority::AdminCandidate,
     offset: usize,
 ) -> SpelResult {
-    AdminConfig::perform_transfer_at(&mut config, offset, &caller, new_admin, &new_admin_account)?;
+    AdminConfig::perform_transfer_at(&mut admin_config, offset, &caller, new_admin, &new_admin_account)?;
     Ok(SpelOutput::execute(
-        vec![config.account, caller.account, new_admin_account.account],
+        vec![admin_config.account, caller.account, new_admin_account.account],
         vec![],
     ))
 }
@@ -388,13 +388,13 @@ pub fn admin_transfer(
 /// there is no recovery path by design.
 #[instruction]
 pub fn admin_renounce(
-    #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
+    #[account(mut, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
     offset: usize,
 ) -> SpelResult {
-    AdminConfig::perform_renounce_at(&mut config, offset, &caller)?;
+    AdminConfig::perform_renounce_at(&mut admin_config, offset, &caller)?;
     Ok(SpelOutput::execute(
-        vec![config.account, caller.account],
+        vec![admin_config.account, caller.account],
         vec![],
     ))
 }

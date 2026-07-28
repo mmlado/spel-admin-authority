@@ -1,0 +1,112 @@
+== Building spel CLI ==
+== Generating IDL from embedded sample ==
+
+── initialize --signer 1111111111111111111111111111111111111111111111111111111111111111 ──────────────────────────────
+📋 Instruction: initialize
+
+=== Dry Run ===
+Program ID: abababababababababababababababababababababababababababababababab
+Instruction: initialize
+
+Accounts:
+  PDA config → 5hS9vdTUktoFc59e49iPewxn8d1Th3KdcNu9b43LAePQ [writable]
+    seeds: [program_id, "prog_config"]
+  signer → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
+
+Arguments:
+
+Instruction data: 0x00000000
+
+Signers:
+  signer: nonce=(unknown)
+================
+Dry run complete — not submitted.
+
+── update-value --caller 1111111111111111111111111111111111111111111111111111111111111111 --new-value 42 ──────────────────────────────
+📋 Instruction: update_value
+
+=== Dry Run ===
+Program ID: abababababababababababababababababababababababababababababababab
+Instruction: update_value
+
+Accounts:
+  caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
+  PDA config → 5hS9vdTUktoFc59e49iPewxn8d1Th3KdcNu9b43LAePQ [writable]
+    seeds: [program_id, "prog_config"]
+
+Arguments:
+  --new-value 42
+
+Instruction data: 0x010000002a00000000000000
+
+Signers:
+  caller: nonce=(unknown)
+================
+Dry run complete — not submitted.
+
+── poke --caller 1111111111111111111111111111111111111111111111111111111111111111 ──────────────────────────────
+📋 Instruction: poke
+
+=== Dry Run ===
+Program ID: abababababababababababababababababababababababababababababababab
+Instruction: poke
+
+Accounts:
+  PDA config → 5hS9vdTUktoFc59e49iPewxn8d1Th3KdcNu9b43LAePQ
+    seeds: [program_id, "prog_config"]
+  caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
+
+Arguments:
+
+Instruction data: 0x02000000
+
+Signers:
+  caller: nonce=(unknown)
+================
+Dry run complete — not submitted.
+
+── admin-transfer --caller 1111111111111111111111111111111111111111111111111111111111111111 --new-admin-account 2222222222222222222222222222222222222222222222222222222222222222 --new-admin Signer ──────────────────────────────
+📋 Instruction: admin_transfer
+
+=== Dry Run ===
+Program ID: abababababababababababababababababababababababababababababababab
+Instruction: admin_transfer
+
+Accounts:
+  PDA config → 5hS9vdTUktoFc59e49iPewxn8d1Th3KdcNu9b43LAePQ [writable]
+    seeds: [program_id, "prog_config"]
+  caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
+  new_admin_account → 0x2222222222222222222222222222222222222222222222222222222222222222
+
+Arguments:
+  --new-admin Signer
+
+Instruction data: 0x0300000000000000
+
+Signers:
+  caller: nonce=(unknown)
+================
+Dry run complete — not submitted.
+
+── admin-renounce --caller 1111111111111111111111111111111111111111111111111111111111111111 ──────────────────────────────
+📋 Instruction: admin_renounce
+
+=== Dry Run ===
+Program ID: abababababababababababababababababababababababababababababababab
+Instruction: admin_renounce
+
+Accounts:
+  PDA config → 5hS9vdTUktoFc59e49iPewxn8d1Th3KdcNu9b43LAePQ [writable]
+    seeds: [program_id, "prog_config"]
+  caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
+
+Arguments:
+
+Instruction data: 0x04000000
+
+Signers:
+  caller: nonce=(unknown)
+================
+Dry run complete — not submitted.
+
+Done.

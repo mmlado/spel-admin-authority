@@ -81,3 +81,68 @@ mod admin_authority_sample_embedded {
         Ok(SpelOutput::execute(vec![], vec![]))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn acct(id_byte: u8, signed: bool) -> AccountWithMetadata {
+        AccountWithMetadata {
+            account: Account::default(),
+            is_authorized: signed,
+            account_id: AccountId::new([id_byte; 32]),
+        }
+    }
+
+    // The sample-level splice regression: consumer state written next to
+    // the slot survives a transfer through the real ProgConfig layout.
+    #[test]
+    fn value_survives_admin_transfer() {
+        let mut config_account = acct(9, false);
+        let old_admin = acct(1, true);
+        let new_admin = acct(2, true);
+
+        ProgConfig {
+            value: 7,
+            padding: [0xAB; 24],
+            admin: AdminConfig::default(),
+        }
+        .write_to(&mut config_account)
+        .expect("initial write");
+        AdminConfig::bootstrap_at(&mut config_account, 32, AdminCandidate::Signer, &old_admin)
+            .expect("bootstrap");
+
+        AdminConfig::perform_transfer_at(
+            &mut config_account,
+            32,
+            &old_admin,
+            AdminCandidate::Signer,
+            &new_admin,
+        )
+        .expect("transfer");
+
+        let state = ProgConfig::from_account(&config_account).expect("decode after transfer");
+        assert_eq!(state.value, 7, "consumer value trampled by the transfer");
+        assert_eq!(state.padding, [0xAB; 24], "padding trampled by the transfer");
+        assert!(state.admin.assert_admin(&new_admin).is_ok());
+        assert!(state.admin.assert_admin(&old_admin).is_err());
+    }
+
+    // Born renounced: creating the account without bootstrapping leaves a
+    // slot that rejects everyone, permanently.
+    #[test]
+    fn skipped_bootstrap_is_born_renounced() {
+        let mut config_account = acct(9, false);
+        let anyone = acct(3, true);
+        ProgConfig {
+            value: 0,
+            padding: [0; 24],
+            admin: AdminConfig::default(),
+        }
+        .write_to(&mut config_account)
+        .expect("initial write");
+
+        let cfg = AdminConfig::from_account_at(&config_account, 32).expect("decode");
+        assert!(cfg.assert_admin(&anyone).is_err(), "born renounced slot must reject");
+    }
+}
