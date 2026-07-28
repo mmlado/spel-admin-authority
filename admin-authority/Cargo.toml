@@ -29,6 +29,6 @@ default = 0
 [dependencies]
 borsh = { version = "1", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-spel-framework = { git = "https://github.com/mmlado/spel.git", branch = "feat/admin_authority_m2_5" }
+spel-framework = { git = "https://github.com/mmlado/spel.git", rev = "752d23b01f3d84c03656445d9de43335b7bc780d" }
 admin-authority-macros  = { path = "../admin-authority-macros"}
-authority = { git = "https://github.com/mmlado/spel-authority.git", branch = "m2_5", package = "spel-authority" }
+authority = { git = "https://github.com/mmlado/spel-authority.git", rev = "60f3e5a854d822270ee5be77ec704945a559a313", package = "spel-authority" }
