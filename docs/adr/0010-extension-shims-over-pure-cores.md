@@ -1,6 +1,6 @@
 # Extension instructions split into consumer-emitted shims over pure library cores
 
-Status: Proposed. Not yet reviewed by the maintainers. Date: 2026-07-28.
+Status: Proposed. Post-contract design exploration, not part of any milestone deliverable. The extension-scanner architecture is the accepted contract baseline. Not yet reviewed by the maintainers, no action requested. Date: 2026-07-28.
 
 Would supersede: freeze-authority ADR-0012 (cross-marker bound args, shipped in M2.5) as a permanent mechanism.
 Would amend: ADR-0009 instruction-drift-shared-file (drift mechanism replaced), ADR-0008 extensions-self-emit-scanner-removed (confirmed and extended), ADR-0007 (bootstrap stays consumer-explicit, an emission-time presence check is added).

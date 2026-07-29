@@ -1,6 +1,6 @@
 # Extensions self-emit; the Cargo.toml metadata scanner is removed
 
-Status: Proposed. Not yet reviewed by the maintainers. Date: 2026-07-28.
+Status: Proposed. Post-contract design exploration, not part of any milestone deliverable. The extension-scanner architecture is the accepted contract baseline. Not yet reviewed by the maintainers, no action requested. Date: 2026-07-28.
 
 Extensions add their instructions by **self-emission**: the extension's attribute macro (outer to `#[lez_program]`) parses the consumer module at compile time and pushes its instruction functions in as real `Item::Fn` nodes, injects gate params, and rewrites `execute(...)` — so `#[lez_program]` sees a complete module with no discovery step. The framework's `[package.metadata.spel]` scanner (`discover_extension`, the `find_path_dep_dirs`-driven extension discovery, the Cargo.toml metadata readers) is deleted. The single source of truth for an extension is its `spel_extension!` declaration. See [extension-model.md](../extension-model.md).
 

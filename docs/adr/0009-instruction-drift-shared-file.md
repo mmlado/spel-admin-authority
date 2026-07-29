@@ -1,6 +1,6 @@
 # Instruction bodies live in a shared file, compiled in-crate to catch drift
 
-Status: Proposed. Not yet reviewed by the maintainers. Date: 2026-07-28.
+Status: Proposed. Post-contract design exploration, not part of any milestone deliverable. The extension-scanner architecture is the accepted contract baseline. Not yet reviewed by the maintainers, no action requested. Date: 2026-07-28.
 
 An extension's instruction definitions live in one `instructions.rs` file. The **library crate `include!`s it**, so the instruction functions compile as real code against the lib's own helpers (`AdminConfig::bootstrap`, etc.) during the lib's normal `cargo build` — any signature drift is a compile error there. The **`-macros` crate `include_str!`s the same file** at its own build, baking the source as tokens the attribute macro later emits into a consumer. `spel-cli` reads the same file for IDL. One definition, three readers.
 
