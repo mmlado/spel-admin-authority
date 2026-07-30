@@ -100,4 +100,25 @@ mod test {
             .expect_err("admin authority renounced");
         assert!(matches!(err, SpelError::Unauthorized { .. }));
     }
+
+    // Proposal scenario: re-initialization rejection. The framework's
+    // #[account(init)] validation refuses a config that already holds
+    // data, before any PDA or handler logic runs.
+    #[test]
+    fn admin_initialize_rejects_already_initialized_config() {
+        let caller = acct(1, true);
+        let mut admin_config = acct(9, false);
+        AdminConfig::bootstrap(&mut admin_config, AdminCandidate::Signer, &caller).unwrap();
+
+        let err = admin_authority_sample::__validate_admin_initialize(
+            &[admin_config, caller],
+            &[1u32; 8],
+            &vec![],
+        )
+        .expect_err("re-initialization must be rejected");
+        assert!(matches!(
+            err,
+            SpelError::AccountAlreadyInitialized { account_index: 0 }
+        ));
+    }
 }
