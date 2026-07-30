@@ -124,12 +124,25 @@ A local checkout referenced by `path` works the same way. `admin-authority-macro
 
 The [authority lifecycle document](docs/authority-lifecycle.md) covers the state machine, validation rules at each transition, and the program-as-admin path through CPI.
 
+## Transaction size overhead
+
+Measured from the committed dry-run captures ([docs/dry-run-output.txt](docs/dry-run-output.txt), [docs/dry-run-embedded-output.txt](docs/dry-run-embedded-output.txt)).
+
+Dedicated mode: the gate adds one account to a gated transaction, the `admin_config` PDA. That is 32 bytes of account id in the message plus the 32 byte config pre-state in the witness. The `caller` signer is shared with the application whenever it already requires one. Instruction data is unchanged, the check adds no arguments.
+
+Embedded mode: the gate adds no account when the gated instruction already carries the embedding account. The slot adds 32 bytes to that account's data instead. In the captures, `update_value` carries 3 accounts in dedicated mode and 2 in embedded mode.
+
 ## Security notes
 
 - **Initialization window.** Call `admin_initialize` immediately after deployment. Until that call lands, anyone can submit it and become admin. Bundling with the deployment is not possible on LEZ today (deployment transactions carry no instructions), so the window is structural.
 - **Renounce is terminal.** `admin_renounce` writes `AccountId::default()` and that is the end. No recovery path by design.
 - **PDA admins via CPI.** A program-owned PDA can be the admin. The owning program calls the gated instruction via a chained_call and declares its admin PDA in `caller-pda-seeds`; LEZ propagates `is_authorized` to the callee. See the lifecycle doc.
 - **Transfer history.** Not recorded on-chain. The current admin is always readable from the Config PDA; historical transfers require an off-chain indexer.
+- **Signer transfers on-chain.** A transfer to a `Signer` candidate needs the new admin's co-signature on the same transaction. The CLI exercises this in dry-run today; submitting it on-chain uses the multi-signature exchange flow proposed upstream in [logos-co/spel#246](https://github.com/logos-co/spel/pull/246).
+
+## Support
+
+Clarification questions and in-scope fixes are covered for 90 days after milestone approval. Platform upgrades past the pinned LEZ rev are new scope.
 
 ## Documentation
 
