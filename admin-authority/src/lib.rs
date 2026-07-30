@@ -824,4 +824,37 @@ mod tests {
             other => panic!("expected Unauthorized, got {other:?}"),
         }
     }
+
+    // ADR-0010 alignment self-test. The probe fn hands the wrapper every
+    // role kwarg this test knows about: a name the macro rejects is a
+    // compile error here, in our own CI, not in a consumer's build. The
+    // runtime half asserts the manifest declares exactly the same set,
+    // so adding an inject account without teaching the macro (or the
+    // reverse) fails this test either way.
+    #[test]
+    fn wrapper_kwargs_match_declared_inject_accounts() {
+        #[require_admin(admin_config = a, caller = b)]
+        fn __probe(
+            a: AccountWithMetadata,
+            b: AccountWithMetadata,
+        ) -> Result<(), SpelError> {
+            let _ = (&a, &b);
+            Ok(())
+        }
+
+        let specs = spel_framework_core::extension::read_inject_specs(std::path::Path::new(
+            env!("CARGO_MANIFEST_DIR"),
+        ))
+        .expect("inject metadata must parse");
+        let mut declared: Vec<&str> = specs
+            .iter()
+            .flat_map(|s| s.accounts.iter().map(|a| a.role.as_str()))
+            .collect();
+        declared.sort_unstable();
+        assert_eq!(
+            declared,
+            vec!["admin_config", "caller"],
+            "manifest inject accounts drifted from the wrapper's kwarg set"
+        );
+    }
 }
