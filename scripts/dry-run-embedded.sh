@@ -15,7 +15,7 @@ SPEL_REPO="${1:-$(dirname "$0")/../../spel}"
 SAMPLE_SRC="$(dirname "$0")/../admin-authority-sample-embedded/src/main.rs"
 PROG_ID="$(printf 'ab%.0s' {1..32})"          # placeholder, fine for dry-run
 CALLER="$(printf '11%.0s' {1..32})"
-NEW_ADMIN="$(printf '22%.0s' {1..32})"
+NEW_ACCOUNT="$(printf '22%.0s' {1..32})"
 IDL="$(mktemp --suffix .idl.json)"
 trap 'rm -f "$IDL"' EXIT
 
@@ -36,7 +36,7 @@ run initialize --signer "$CALLER"
 run update-value --caller "$CALLER" --new-value 42
 run poke --caller "$CALLER"
 
-run admin-transfer --caller "$CALLER" --new-admin-account "$NEW_ADMIN" --new-admin Signer
+run admin-transfer --caller "$CALLER" --new-account "$NEW_ACCOUNT" --candidate Signer
 run admin-renounce --caller "$CALLER"
 
 echo

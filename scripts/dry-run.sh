@@ -8,7 +8,7 @@
 # Usage:  scripts/dry-run.sh [path-to-spel-repo]
 # Output: prints to stdout; CI or docs can redirect to a file.
 #
-# Enum arguments (new_admin: AdminCandidate) use the CLI's defined-type
+# Enum arguments (candidate: AdminCandidate) use the CLI's defined-type
 # syntax: a bare variant name for unit variants (Signer), or a one-key
 # JSON object for payload variants ({"Pda": {"program_id": "..", "seed": ".."}}).
 
@@ -18,7 +18,7 @@ SPEL_REPO="${1:-$(dirname "$0")/../../spel}"
 SAMPLE_SRC="$(dirname "$0")/../admin-authority-sample/src/main.rs"
 PROG_ID="$(printf 'ab%.0s' {1..32})"          # placeholder, fine for dry-run
 CALLER="$(printf '11%.0s' {1..32})"
-NEW_ADMIN="$(printf '22%.0s' {1..32})"
+NEW_ACCOUNT="$(printf '22%.0s' {1..32})"
 IDL="$(mktemp --suffix .idl.json)"
 trap 'rm -f "$IDL"' EXIT
 
@@ -44,13 +44,13 @@ run admin-initialize --caller "$CALLER"
 # also signs (is_authorized comes from the tx witness set). The CLI's
 # witness-exchange feature (partial-tx blob, spel sign / spel submit) is
 # planned separately; until it lands this dry-run shows the shape only.
-run admin-transfer --caller "$CALLER" --new-admin-account "$NEW_ADMIN" --new-admin Signer
+run admin-transfer --caller "$CALLER" --new-account "$NEW_ACCOUNT" --candidate Signer
 
 # Payload variant: transfer admin to a PDA, passing the enum as JSON.
 PDA_PROGRAM="$(printf 'cd%.0s' {1..32})"
 PDA_SEED="$(printf 'ef%.0s' {1..32})"
-run admin-transfer --caller "$CALLER" --new-admin-account "$NEW_ADMIN" \
-    --new-admin "{\"Pda\": {\"program_id\": \"$PDA_PROGRAM\", \"seed\": \"$PDA_SEED\"}}"
+run admin-transfer --caller "$CALLER" --new-account "$NEW_ACCOUNT" \
+    --candidate "{\"Pda\": {\"program_id\": \"$PDA_PROGRAM\", \"seed\": \"$PDA_SEED\"}}"
 
 echo
 echo "Done."

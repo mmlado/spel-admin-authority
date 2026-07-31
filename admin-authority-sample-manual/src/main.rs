@@ -56,12 +56,12 @@ mod admin_authority_sample_manual {
     pub fn admin_transfer(
         #[account(mut, pda = literal("admin_config"))] mut config: AccountWithMetadata,
         #[account(signer)] caller: AccountWithMetadata,
-        new_admin_account: AccountWithMetadata,
-        new_admin: ::admin_authority::AdminCandidate,
+        new_account: AccountWithMetadata,
+        candidate: ::admin_authority::AdminCandidate,
     ) -> SpelResult {
-        AdminConfig::perform_transfer(&mut config, &caller, new_admin, &new_admin_account)?;
+        AdminConfig::perform_transfer(&mut config, &caller, candidate, &new_account)?;
         Ok(SpelOutput::execute(
-            vec![config, caller, new_admin_account],
+            vec![config, caller, new_account],
             vec![],
         ))
     }

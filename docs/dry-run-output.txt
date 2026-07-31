@@ -67,7 +67,7 @@ Signers:
 ================
 Dry run complete — not submitted.
 
-── admin-transfer --caller 1111111111111111111111111111111111111111111111111111111111111111 --new-admin-account 2222222222222222222222222222222222222222222222222222222222222222 --new-admin Signer ──────────────────────────────
+── admin-transfer --caller 1111111111111111111111111111111111111111111111111111111111111111 --new-account 2222222222222222222222222222222222222222222222222222222222222222 --candidate Signer ──────────────────────────────
 📋 Instruction: admin_transfer
 
 === Dry Run ===
@@ -78,10 +78,10 @@ Accounts:
   PDA admin_config → 23czDuwgR21xjdqpsf9wGRpZ86LaiAvZ4ZbvDCxz7B96 [writable]
     seeds: [program_id, "admin_config"]
   caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
-  new_admin_account → 0x2222222222222222222222222222222222222222222222222222222222222222
+  new_account → 0x2222222222222222222222222222222222222222222222222222222222222222
 
 Arguments:
-  --new-admin Signer
+  --candidate Signer
 
 Instruction data: 0x0200000000000000
 
@@ -90,7 +90,7 @@ Signers:
 ================
 Dry run complete — not submitted.
 
-── admin-transfer --caller 1111111111111111111111111111111111111111111111111111111111111111 --new-admin-account 2222222222222222222222222222222222222222222222222222222222222222 --new-admin {"Pda": {"program_id": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", "seed": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"}} ──────────────────────────────
+── admin-transfer --caller 1111111111111111111111111111111111111111111111111111111111111111 --new-account 2222222222222222222222222222222222222222222222222222222222222222 --candidate {"Pda": {"program_id": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", "seed": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"}} ──────────────────────────────
 📋 Instruction: admin_transfer
 
 === Dry Run ===
@@ -101,10 +101,10 @@ Accounts:
   PDA admin_config → 23czDuwgR21xjdqpsf9wGRpZ86LaiAvZ4ZbvDCxz7B96 [writable]
     seeds: [program_id, "admin_config"]
   caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
-  new_admin_account → 0x2222222222222222222222222222222222222222222222222222222222222222
+  new_account → 0x2222222222222222222222222222222222222222222222222222222222222222
 
 Arguments:
-  --new-admin Pda { program_id: [3452816845, 3452816845, 3452816845, 3452816845, 3452816845, 3452816845, 3452816845, 3452816845], seed: 0xefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef }
+  --candidate Pda { program_id: [3452816845, 3452816845, 3452816845, 3452816845, 3452816845, 3452816845, 3452816845, 3452816845], seed: 0xefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef }
 
 Instruction data: 0x0200000001000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000ef000000
 

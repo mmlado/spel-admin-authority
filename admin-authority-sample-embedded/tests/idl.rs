@@ -120,7 +120,7 @@ fn idl_shows_embedded_surface_and_no_initializer_or_offset() {
     let transfer_args: Vec<&str> = transfer.args.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(
         transfer_args,
-        vec!["new_admin"],
+        vec!["candidate"],
         "admin_transfer args drifted"
     );
 

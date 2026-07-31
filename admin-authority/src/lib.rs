@@ -17,7 +17,7 @@ extern crate self as admin_authority;
 /// Transfer-time claim describing the intended new admin. Alias of the
 /// shared [`AuthorityCandidate`]: `Signer` proves key control by
 /// co-signature, `Pda { program_id, seed }` by address derivation plus a
-/// deployment check. Always paired with a `new_admin_account` param that
+/// deployment check. Always paired with a `new_account` param that
 /// carries the chain-state evidence.
 pub type AdminCandidate = AuthorityCandidate;
 
@@ -176,10 +176,10 @@ impl AdminConfig {
     /// admin setup inside their own `initialize` handler.
     pub fn bootstrap(
         config_account: &mut AccountWithMetadata,
-        new_admin: AdminCandidate,
-        new_admin_account: &AccountWithMetadata,
+        candidate: AdminCandidate,
+        new_account: &AccountWithMetadata,
     ) -> Result<(), AdminError> {
-        let resolved = new_admin.validate(new_admin_account)?;
+        let resolved = candidate.validate(new_account)?;
         let state = Self::initialize(resolved)?;
         state.write_to(config_account)
     }
@@ -197,10 +197,10 @@ impl AdminConfig {
     pub fn bootstrap_at(
         config_account: &mut AccountWithMetadata,
         offset: usize,
-        new_admin: AdminCandidate,
-        new_admin_account: &AccountWithMetadata,
+        candidate: AdminCandidate,
+        new_account: &AccountWithMetadata,
     ) -> Result<(), AdminError> {
-        let resolved = new_admin.validate(new_admin_account)?;
+        let resolved = candidate.validate(new_account)?;
         let state = Self::initialize(resolved)?;
         state.write_to_at(config_account, offset)
     }
@@ -210,9 +210,9 @@ impl AdminConfig {
         config_account: &mut AccountWithMetadata,
         current: &AccountWithMetadata,
         candidate: AdminCandidate,
-        new_admin_account: &AccountWithMetadata,
+        new_account: &AccountWithMetadata,
     ) -> Result<(), AdminError> {
-        Self::perform_transfer_at(config_account, 0, current, candidate, new_admin_account)
+        Self::perform_transfer_at(config_account, 0, current, candidate, new_account)
     }
 
     /// Loads config from account, transfers admin, writes back.
@@ -221,10 +221,10 @@ impl AdminConfig {
         offset: usize,
         current: &AccountWithMetadata,
         candidate: AdminCandidate,
-        new_admin_account: &AccountWithMetadata,
+        new_account: &AccountWithMetadata,
     ) -> Result<(), AdminError> {
         let mut state = Self::from_account_at(config_account, offset)?;
-        state.transfer(current, candidate, new_admin_account)?;
+        state.transfer(current, candidate, new_account)?;
         state.write_to_at(config_account, offset)
     }
 
@@ -281,7 +281,7 @@ pub enum AdminError {
     /// `AdminCandidate::Pda` references an account no program owns
     /// (unclaimed or merely funded).
     UndeployedPda,
-    /// Candidate's derived address does not match `new_admin_account.account_id`.
+    /// Candidate's derived address does not match `new_account.account_id`.
     CandidateMismatch,
     /// Borsh encoding of `AdminConfig` failed.
     EncodingFailed,
@@ -370,33 +370,33 @@ pub fn admin_initialize(
 /// Replaces the current admin with a new signer or PDA.
 ///
 /// Only the current admin can call. The new admin is described by the
-/// `AdminCandidate` and validated against `new_admin_account`. After this
+/// `AdminCandidate` and validated against `new_account`. After this
 /// transaction lands, the previous admin can no longer call gated
 /// instructions.
 ///
-/// Transfer-to-self is impossible: `caller` and `new_admin_account` would
+/// Transfer-to-self is impossible: `caller` and `new_account` would
 /// share one account id, which LEZ rejects as a duplicate. That is
 /// acceptable because such a transfer would be a no-op.
 #[instruction]
 pub fn admin_transfer(
     #[account(mut, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
-    new_admin_account: AccountWithMetadata,
-    new_admin: ::admin_authority::AdminCandidate,
+    new_account: AccountWithMetadata,
+    candidate: ::admin_authority::AdminCandidate,
     offset: usize,
 ) -> SpelResult {
     AdminConfig::perform_transfer_at(
         &mut admin_config,
         offset,
         &caller,
-        new_admin,
-        &new_admin_account,
+        candidate,
+        &new_account,
     )?;
     Ok(SpelOutput::execute(
         vec![
             admin_config.account,
             caller.account,
-            new_admin_account.account,
+            new_account.account,
         ],
         vec![],
     ))
