@@ -6,10 +6,11 @@ use spel_framework::prelude::*;
 /// value 0..8, padding 8..32, admin 32..64. The non-zero offset is
 /// deliberate, it exercises the splice.
 #[account_type]
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Default)]
 pub struct ProgConfig {
     pub value: u64,
     pub padding: [u8; 24],
+    #[admin_slot]
     pub admin: AdminConfig,
 }
 

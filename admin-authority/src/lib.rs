@@ -250,6 +250,17 @@ impl AdminConfig {
     }
 }
 
+impl spel_framework::FixedBorshSize for AdminConfig {
+    const SIZE: usize = 32;
+}
+
+impl spel_framework::SlotLayoutProbe for AdminConfig {
+    fn probe() -> Self {
+        AdminConfig::initialize(AccountId::new([0xA5; 32]))
+            .expect("the probe admin is is not the renounced sentinel")
+    }
+}
+
 /// Errors returned by `admin-authority` library methods. Mapped to
 /// `SpelError::Unauthorized` at the SPEL boundary so the lib stays
 /// independent of the framework's error surface.

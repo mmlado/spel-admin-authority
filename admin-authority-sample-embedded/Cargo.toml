@@ -12,4 +12,5 @@ nssa_core = { git = "https://github.com/logos-blockchain/logos-execution-zone.gi
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
+trybuild = "1"
 spel-framework-core = { git = "https://github.com/mmlado/spel.git", rev = "752d23b01f3d84c03656445d9de43335b7bc780d", features = ["idl-gen"] }

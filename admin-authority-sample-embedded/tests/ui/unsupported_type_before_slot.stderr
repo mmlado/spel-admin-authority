@@ -1,0 +1,16 @@
+error[E0277]: the trait bound `std::string::String: FixedBorshSize` is not satisfied
+  --> tests/ui/unsupported_type_before_slot.rs:10:15
+   |
+10 |     pub name: String,
+   |               ^^^^^^ the trait `FixedBorshSize` is not implemented for `std::string::String`
+   |
+   = help: the following other types implement trait `FixedBorshSize`:
+             AccountId
+             AdminConfig
+             [T; N]
+             bool
+             i128
+             i16
+             i32
+             i64
+           and $N others
