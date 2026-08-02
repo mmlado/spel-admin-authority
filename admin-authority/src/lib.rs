@@ -833,14 +833,24 @@ mod tests {
             "CARGO_MANIFEST_DIR"
         )))
         .expect("inject metadata must parse");
-        let mut declared: Vec<&str> = specs
+        let mut by_wrapper: Vec<(String, Vec<&str>)> = specs
             .iter()
-            .flat_map(|s| s.accounts.iter().map(|a| a.role.as_str()))
+            .map(|s| {
+                let mut roles: Vec<&str> = s.accounts.iter().map(|a| a.role.as_str()).collect();
+                roles.sort_unstable();
+                (s.wrapper.clone(), roles)
+            })
             .collect();
-        declared.sort_unstable();
+        by_wrapper.sort();
         assert_eq!(
-            declared,
-            vec!["admin_config", "caller"],
+            by_wrapper,
+            vec![
+                (
+                    "admin_initialize".to_string(),
+                    vec!["admin_config", "caller"]
+                ),
+                ("require_admin".to_string(), vec!["admin_config", "caller"]),
+            ],
             "manifest inject accounts drifted from the wrapper's kwarg set"
         );
     }
