@@ -71,7 +71,10 @@ fn idl_shows_embedded_surface_and_no_initializer_or_offset() {
         pda.seeds
     );
     assert!(
-        update_value.accounts.iter().any(|a| a.name == "caller" && a.signer),
+        update_value
+            .accounts
+            .iter()
+            .any(|a| a.name == "caller" && a.signer),
         "caller must be injected as a signer"
     );
 
@@ -133,7 +136,11 @@ fn idl_shows_embedded_surface_and_no_initializer_or_offset() {
     assert!(
         renounce.args.is_empty(),
         "admin_renounce must take no args, found: {:?}",
-        renounce.args.iter().map(|a| a.name.as_str()).collect::<Vec<_>>()
+        renounce
+            .args
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect::<Vec<_>>()
     );
 
     // The candidate enum still resolves through the alias.

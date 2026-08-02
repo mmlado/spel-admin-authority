@@ -374,9 +374,19 @@ pub fn admin_transfer(
     new_admin: ::admin_authority::AdminCandidate,
     offset: usize,
 ) -> SpelResult {
-    AdminConfig::perform_transfer_at(&mut admin_config, offset, &caller, new_admin, &new_admin_account)?;
+    AdminConfig::perform_transfer_at(
+        &mut admin_config,
+        offset,
+        &caller,
+        new_admin,
+        &new_admin_account,
+    )?;
     Ok(SpelOutput::execute(
-        vec![admin_config.account, caller.account, new_admin_account.account],
+        vec![
+            admin_config.account,
+            caller.account,
+            new_admin_account.account,
+        ],
         vec![],
     ))
 }

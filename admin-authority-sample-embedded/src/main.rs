@@ -123,7 +123,10 @@ mod tests {
 
         let state = ProgConfig::from_account(&config_account).expect("decode after transfer");
         assert_eq!(state.value, 7, "consumer value trampled by the transfer");
-        assert_eq!(state.padding, [0xAB; 24], "padding trampled by the transfer");
+        assert_eq!(
+            state.padding, [0xAB; 24],
+            "padding trampled by the transfer"
+        );
         assert!(state.admin.assert_admin(&new_admin).is_ok());
         assert!(state.admin.assert_admin(&old_admin).is_err());
     }
@@ -143,6 +146,9 @@ mod tests {
         .expect("initial write");
 
         let cfg = AdminConfig::from_account_at(&config_account, 32).expect("decode");
-        assert!(cfg.assert_admin(&anyone).is_err(), "born renounced slot must reject");
+        assert!(
+            cfg.assert_admin(&anyone).is_err(),
+            "born renounced slot must reject"
+        );
     }
 }
