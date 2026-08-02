@@ -1,5 +1,6 @@
-// A field before the slot changed without the marker offset following.
-// The emitted agreement assert must refuse this build.
+// #[admin_initialize] on an instruction that does not create the
+// embedding account: the bootstrap must only ever run on a freshly
+// created account, so this must refuse.
 use admin_authority::{AdminCandidate, AdminConfig};
 use borsh::{BorshDeserialize, BorshSerialize};
 use spel_framework::prelude::*;
@@ -7,7 +8,7 @@ use spel_framework::prelude::*;
 #[account_type]
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Default)]
 pub struct ProgConfig {
-    pub value: u32,
+    pub value: u64,
     pub padding: [u8; 24],
     #[admin_slot]
     pub admin: AdminConfig,
@@ -31,7 +32,7 @@ mod fixture {
         ))
     }
 
-    #[require_admin]
+    #[admin_initialize]
     #[instruction]
     pub fn poke() -> SpelResult {
         Ok(SpelOutput::execute(vec![], vec![]))

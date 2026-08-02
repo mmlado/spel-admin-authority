@@ -10,7 +10,7 @@ use spel_framework::prelude::*;
 
 use authority::{AuthorityCandidate, AuthorityError, AuthoritySlot};
 
-pub use admin_authority_macros::{admin_authority, instruction, require_admin};
+pub use admin_authority_macros::{admin_authority, admin_initialize, instruction, require_admin};
 
 extern crate self as admin_authority;
 

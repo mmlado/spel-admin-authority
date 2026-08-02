@@ -37,11 +37,12 @@ impl ProgConfig {
 #[lez_program]
 #[admin_authority(admin_config = config, offset = 32)]
 mod admin_authority_sample_embedded {
-    use admin_authority::require_admin;
+    use admin_authority::{admin_initialize, require_admin};
 
     /// Creates the embedding account and bootstraps the admin slot in
     /// the same instruction: the slot is born initialized, there is no
     /// admin_initialize in embedded mode.
+    #[admin_initialize]
     #[instruction]
     pub fn initialize(
         #[account(init, pda = literal("prog_config"))] mut config: AccountWithMetadata,
@@ -53,7 +54,6 @@ mod admin_authority_sample_embedded {
             admin: AdminConfig::default(),
         }
         .write_to(&mut config)?;
-        AdminConfig::bootstrap_at(&mut config, 32, AdminCandidate::Signer, &signer)?;
         Ok(SpelOutput::execute(
             vec![config.account, signer.account],
             vec![],
@@ -130,6 +130,31 @@ mod tests {
         );
         assert!(state.admin.assert_admin(&new_admin).is_ok());
         assert!(state.admin.assert_admin(&old_admin).is_err());
+    }
+
+    // The attribute injects the bootstrap: calling the instruction
+    // itself must leave the caller installed as admin, with no manual
+    // bootstrap line anywhere in the body.
+    #[test]
+    fn injected_bootstrap_installs_the_caller() {
+        let config = acct(9, false);
+        let signer = acct(1, true);
+        let out = admin_authority_sample_embedded::initialize(config, signer.clone())
+            .expect("initialize succeeds");
+        let account = out
+            .post_states
+            .into_iter()
+            .next()
+            .expect("config post state")
+            .into_account();
+        let mut readback = acct(9, false);
+        readback.account = account;
+        let cfg = AdminConfig::from_account_at(&readback, ProgConfig::ADMIN_SLOT_OFFSET)
+            .expect("slot decodes after the injected bootstrap");
+        assert!(
+            cfg.assert_admin(&signer).is_ok(),
+            "the caller must be installed as admin"
+        );
     }
 
     // Born renounced: creating the account without bootstrapping leaves a

@@ -53,6 +53,88 @@ fn misplaced_above_lez_program(module: &syn::ItemMod) -> Option<syn::Error> {
     }
 }
 
+/// Embedded-mode initializer: injects the bootstrap into the consumer's
+/// account-creating instruction. The framework stamps `admin_config`
+/// and `offset`; the consumer may name their signer with `caller = x`.
+/// The named embedding param must be `#[account(init)]` in this same
+/// instruction: `init` is the only fresh-account guarantee, and a
+/// bootstrap against an existing account would be a takeover.
+#[proc_macro_attribute]
+pub fn admin_initialize(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(
+        attr with Punctuated::<MetaNameValue, Token![,]>::parse_terminated
+    );
+
+    let mut config_ident = format_ident!("admin_config");
+    let mut caller_ident = format_ident!("caller");
+    let mut offset_expr: Option<Expr> = None;
+
+    for pair in args {
+        let Some(key) = pair.path.get_ident().map(|i| i.to_string()) else {
+            return syn::Error::new_spanned(&pair.path, "expected an identifier key")
+                .to_compile_error()
+                .into();
+        };
+        match key.as_str() {
+            "offset" => offset_expr = Some(pair.value),
+            "admin_config" | "caller" => {
+                let Expr::Path(p) = &pair.value else {
+                    return syn::Error::new_spanned(&pair.value, "expected a bare parameter name")
+                        .to_compile_error()
+                        .into();
+                };
+                let ident = p.path.get_ident().cloned().expect("bare ident");
+                if key == "admin_config" {
+                    config_ident = ident;
+                } else {
+                    caller_ident = ident;
+                }
+            }
+            other => {
+                return syn::Error::new_spanned(
+                    &pair.path,
+                    format!("unknown key `{other}`; expected `admin_config`, `caller` or `offset`"),
+                )
+                .to_compile_error()
+                .into();
+            }
+        };
+    }
+
+    let Some(offset) = offset_expr else {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "#[admin_initialize] is embedded-mode only and its location is \
+            framework-stamped; dedicated mode provides the admin_initialize \
+            instruction instead",
+        )
+        .to_compile_error()
+        .into();
+    };
+
+    let mut func: syn::ItemFn = parse_macro_input!(item as ItemFn);
+
+    let stmts = &func.block.stmts;
+    let (body, tail) = stmts.split_at(stmts.len().saturating_sub(1));
+    let bootstrap: syn::Stmt = parse_quote! {
+        ::admin_authority::AdminConfig::bootstrap_at(
+            &mut #config_ident,
+            #offset,
+            ::admin_authority::AdminCandidate::Signer,
+            &#caller_ident,
+        )?;
+    };
+    let new_stmts: Vec<syn::Stmt> = body
+        .iter()
+        .cloned()
+        .chain(std::iter::once(bootstrap))
+        .chain(tail.iter().cloned())
+        .collect();
+    func.block.stmts = new_stmts;
+
+    quote!(#func).into()
+}
+
 /// Body-inject macro. Prepends an admin authorization check (decode the
 /// Config PDA + `assert_admin`) to the annotated instruction's body, so a
 /// non-Admin caller is rejected before the handler's own logic runs.
