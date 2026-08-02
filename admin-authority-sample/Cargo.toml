@@ -6,9 +6,9 @@ edition = "2024"
 [dependencies]
 borsh = { version = "1", features = ["derive"] }
 admin-authority = { path = "../admin-authority" }
-spel-framework = { git = "https://github.com/mmlado/spel.git", rev = "752d23b01f3d84c03656445d9de43335b7bc780d" }
+spel-framework = { git = "https://github.com/mmlado/spel.git", rev = "13e22bc39866cfcc68084484bed758b472a93e3e" }
 nssa_core = { git = "https://github.com/logos-blockchain/logos-execution-zone.git", tag = "v0.2.0", package = "lee_core" }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-spel-framework-core = { git = "https://github.com/mmlado/spel.git", rev = "752d23b01f3d84c03656445d9de43335b7bc780d", features = ["idl-gen"] }
+spel-framework-core = { git = "https://github.com/mmlado/spel.git", rev = "13e22bc39866cfcc68084484bed758b472a93e3e", features = ["idl-gen"] }
