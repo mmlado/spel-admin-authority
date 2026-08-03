@@ -54,10 +54,7 @@ mod admin_authority_sample_embedded {
             admin: AdminConfig::default(),
         }
         .write_to(&mut config)?;
-        Ok(SpelOutput::execute(
-            vec![config.account, signer.account],
-            vec![],
-        ))
+        Ok(SpelOutput::execute(vec![config, signer], vec![]))
     }
 
     /// Gated. The embedding account is declared, so injection skips it
@@ -71,7 +68,7 @@ mod admin_authority_sample_embedded {
         let mut state = ProgConfig::from_account(&config)?;
         state.value = new_value;
         state.write_to(&mut config)?;
-        Ok(SpelOutput::execute(vec![config.account], vec![]))
+        Ok(SpelOutput::execute(vec![config], vec![]))
     }
 
     /// Gated but does not declare the embedding account: injection must
