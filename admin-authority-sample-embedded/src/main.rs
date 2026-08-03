@@ -1,4 +1,4 @@
-use admin_authority::{AdminCandidate, AdminConfig};
+use admin_authority::AdminConfig;
 use borsh::{BorshDeserialize, BorshSerialize};
 use spel_framework::prelude::*;
 
@@ -83,6 +83,7 @@ mod admin_authority_sample_embedded {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use admin_authority::AdminCandidate;
 
     fn acct(id_byte: u8, signed: bool) -> AccountWithMetadata {
         AccountWithMetadata {

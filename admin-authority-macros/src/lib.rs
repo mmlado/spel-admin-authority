@@ -27,10 +27,10 @@ use syn::{
 /// skipping discovery, so that placement is a hard error.
 #[proc_macro_attribute]
 pub fn admin_authority(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    if let Ok(module) = syn::parse::<syn::ItemMod>(item.clone()) {
-        if let Some(err) = misplaced_above_lez_program(&module) {
-            return err.to_compile_error().into();
-        }
+    if let Ok(module) = syn::parse::<syn::ItemMod>(item.clone())
+        && let Some(err) = misplaced_above_lez_program(&module)
+    {
+        return err.to_compile_error().into();
     }
     item
 }
