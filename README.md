@@ -48,12 +48,16 @@ The admin slot can live inside one of the consumer's own accounts instead of a d
 pub struct ProgConfig {
     pub value: u64,            // bytes 0..8
     pub padding: [u8; 24],     // bytes 8..32
+    #[admin_slot]
     pub admin: AdminConfig,    // bytes 32..64, the embedded slot
 }
 
 #[lez_program]
 #[admin_authority(admin_config = config, offset = 32)]
 mod my_program {
+    use admin_authority::admin_initialize;
+
+    #[admin_initialize]
     #[instruction]
     pub fn initialize(
         #[account(init, pda = literal("prog_config"))] mut config: AccountWithMetadata,
@@ -61,7 +65,6 @@ mod my_program {
     ) -> SpelResult {
         ProgConfig { value: 0, padding: [0; 24], admin: AdminConfig::default() }
             .write_to(&mut config)?;
-        AdminConfig::bootstrap_at(&mut config, 32, AdminCandidate::Signer, &signer)?;
         // ...
     }
 }
@@ -69,7 +72,8 @@ mod my_program {
 
 What changes versus dedicated mode:
 
-- **No `admin_initialize`.** The slot is born initialized: the consumer's own account-creating instruction writes its struct, then `bootstrap_at` splices the admin in. An account created without the bootstrap is born renounced, permanently. There is no init front-running window in embedded mode.
+- **No `admin_initialize` instruction.** The consumer marks its own account-creating instruction with `#[admin_initialize]` and the bootstrap is injected: the caller is installed as admin in the transaction that creates the account, so the slot is born initialized and there is no init front-running window in embedded mode. An account created without the bootstrap is born renounced, permanently.
+- **`#[admin_slot]` marks the field.** The marker derives an `ADMIN_SLOT_OFFSET` const and a layout test, and the build fails if the marker position and the declared `offset` disagree, for example after a field is added above the slot.
 - **Everything retargets.** Gates read the slot at the declared offset from the embedding account, `admin_transfer` and `admin_renounce` operate on it (writes splice only the 32-byte window, neighboring consumer fields survive), and the IDL shows the embedding account everywhere the dedicated PDA used to appear.
 - **The offset is never in a transaction.** It is compiled into the program as a literal at every call site; the IDL carries no offset argument. Changing it means different bytecode, which on LEZ is a different program.
 - **The marker is the only writer of location kwargs.** Writing `admin_config = ...` or `offset = ...` on a gate by hand is a compile error in embedded mode; the `caller` kwarg stays available.
