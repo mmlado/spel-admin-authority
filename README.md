@@ -132,6 +132,8 @@ Dedicated mode: the gate adds one account to a gated transaction, the `admin_con
 
 Embedded mode: the gate adds no account when the gated instruction already carries the embedding account. The slot adds 32 bytes to that account's data instead. In the captures, `update_value` carries 3 accounts in dedicated mode and 2 in embedded mode.
 
+The embedded shapes are also confirmed end to end against a local LEZ v0.2.0 stack (bedrock node plus sequencer) with the program built from the published branch heads. The gated `update_value` and the fully synthesized `poke` each carried 2 accounts, the caller and the embedding account. Embedded mode also drops the separate `admin_initialize` transaction, the slot was bootstrapped inside the same `initialize` that created the account.
+
 ## Security notes
 
 - **Initialization window.** Call `admin_initialize` immediately after deployment. Until that call lands, anyone can submit it and become admin. Bundling with the deployment is not possible on LEZ today (deployment transactions carry no instructions), so the window is structural.
