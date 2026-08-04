@@ -1,3 +1,9 @@
+//! The admin slot. `AdminConfig` wraps the shared `authority` slot
+//! machinery with the admin naming: decode, assert, transfer, renounce,
+//! and bootstrap, each in a plain form for a dedicated Config PDA and an
+//! `_at` form that splices only the slot's byte window of an embedding
+//! account.
+
 #![warn(missing_docs)]
 
 use authority::{AuthorityCandidate, AuthoritySlot};

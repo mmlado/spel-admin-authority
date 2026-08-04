@@ -1,3 +1,6 @@
+//! The library error type and its conversions from the shared
+//! `authority` errors and into `SpelError` at the SPEL boundary.
+
 #![warn(missing_docs)]
 
 use authority::AuthorityError;
