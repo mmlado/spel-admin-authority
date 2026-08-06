@@ -35,7 +35,7 @@ impl ProgConfig {
 }
 
 #[lez_program]
-#[admin_authority(admin_config = config, offset = 32)]
+#[admin_authority(admin_config = config)]
 mod admin_authority_sample_embedded {
     use admin_authority::{admin_initialize, require_admin};
 
