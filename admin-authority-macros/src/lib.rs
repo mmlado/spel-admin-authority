@@ -160,23 +160,11 @@ pub fn require_admin(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let mut config_ident = format_ident!("admin_config");
     let mut caller_ident = format_ident!("caller");
-    let mut offset: usize = 0;
+    let mut offset: syn::Expr = syn::parse_quote!(0);
 
     for pair in args {
         if pair.path.is_ident("offset") {
-            let Expr::Lit(syn::ExprLit {
-                lit: syn::Lit::Int(i),
-                ..
-            }) = &pair.value
-            else {
-                return syn::Error::new_spanned(&pair.value, "offset must be an integer literal")
-                    .to_compile_error()
-                    .into();
-            };
-            offset = match i.base10_parse::<usize>() {
-                Ok(v) => v,
-                Err(e) => return syn::Error::new_spanned(i, e).to_compile_error().into(),
-            };
+            offset = pair.value.clone();
             continue;
         }
         let value_ident = match &pair.value {
