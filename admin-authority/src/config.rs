@@ -259,6 +259,19 @@ impl spel_framework::SlotLayoutProbe for AdminConfig {
 mod tests {
     use super::*;
 
+    // The declared embedded window type must be this crate's real
+    // config: the framework emits window collision asserts through its
+    // FixedBorshSize::SIZE at every embedded consumer's build.
+    #[test]
+    fn metadata_state_type_names_the_real_config() {
+        let _size_witness = <AdminConfig as spel_framework::FixedBorshSize>::SIZE;
+        let manifest = include_str!("../Cargo.toml");
+        assert!(
+            manifest.contains(r#"state_type = "admin_authority::AdminConfig""#),
+            "embedded.state_type must name admin_authority::AdminConfig"
+        );
+    }
+
     fn acct(id_byte: u8, signed: bool) -> AccountWithMetadata {
         AccountWithMetadata {
             account: Account::default(),
