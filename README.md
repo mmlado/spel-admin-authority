@@ -113,11 +113,11 @@ The framework discovers extensions among the consumer's direct dependencies, whe
 
 ```toml
 [dependencies]
-admin-authority = { git = "https://github.com/mmlado/spel-admin-authority", branch = "m2_5" }
-spel-framework  = { git = "https://github.com/mmlado/spel", branch = "feat/admin_authority_m2_5" }
+admin-authority = { git = "https://github.com/mmlado/spel-admin-authority", branch = "m3" }
+spel-framework  = { git = "https://github.com/mmlado/spel", branch = "feat/admin_authority_m3" }
 ```
 
-A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` branch must match the one this repo's Cargo.toml pins, `feat/admin_authority_m2_5` at this milestone. It moves to `logos-co/spel` once the upstream PR merges.
+A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` source must match the rev this repo's Cargo.toml pins, on `feat/admin_authority_m3` at this milestone. It moves to `logos-co/spel` once the upstream PR merges.
 
 ## Integration steps
 
