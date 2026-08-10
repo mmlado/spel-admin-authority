@@ -43,7 +43,7 @@ borsh = { version = "1", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 spel-framework = { git = "https://github.com/mmlado/spel.git", branch = "feat/derived_embedding" }
 admin-authority-macros  = { path = "../admin-authority-macros"}
-authority = { git = "https://github.com/mmlado/spel-authority.git", branch = "derived_offset", package = "spel-authority" }
+authority = { git = "https://github.com/mmlado/spel-authority.git", branch = "feat/derived_embedding", package = "spel-authority" }
 
 [dev-dependencies]
 spel-framework-core = { git = "https://github.com/mmlado/spel.git", branch = "feat/derived_embedding", features = ["idl-gen"] }

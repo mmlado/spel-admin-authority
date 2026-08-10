@@ -1856,7 +1856,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 [[package]]
 name = "spel-authority"
 version = "0.1.0"
-source = "git+https://github.com/mmlado/spel-authority.git?branch=derived_offset#abd58afbfdac36f02931babe452a33ece9e4347e"
+source = "git+https://github.com/mmlado/spel-authority.git?branch=feat%2Fderived_embedding#abd58afbfdac36f02931babe452a33ece9e4347e"
 dependencies = [
  "borsh",
  "serde",
