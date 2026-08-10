@@ -41,9 +41,9 @@ default = 0
 [dependencies]
 borsh = { version = "1", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-spel-framework = { git = "https://github.com/mmlado/spel.git", rev = "98752095f45d405469f572668cd744c317fb8dad" }
+spel-framework = { git = "https://github.com/mmlado/spel.git", rev = "a0dfcd85af7dfdb7ecb8117474d39e85415afc96" }
 admin-authority-macros  = { path = "../admin-authority-macros"}
-authority = { git = "https://github.com/mmlado/spel-authority.git", rev = "e20f87cbd6e7ee267810f41a2faa81fc03b053a7", package = "spel-authority" }
+authority = { git = "https://github.com/mmlado/spel-authority.git", rev = "f3874bbf96f1967541d7fe0967760c150204c459", package = "spel-authority" }
 
 [dev-dependencies]
-spel-framework-core = { git = "https://github.com/mmlado/spel.git", rev = "98752095f45d405469f572668cd744c317fb8dad", features = ["idl-gen"] }
+spel-framework-core = { git = "https://github.com/mmlado/spel.git", rev = "a0dfcd85af7dfdb7ecb8117474d39e85415afc96", features = ["idl-gen"] }
