@@ -1,4 +1,4 @@
-error: `poke` carries #[admin_initialize] but does not declare `config` with #[account(init, ...)]; the bootstrap must only ever run on a freshly created account
+error: extension `admin_authority`: #[admin_initialize] on fn `poke` has no #[account(init)] param; the anchor fn creates the embedding account
   --> tests/ui/admin_initialize_without_init.rs:17:1
    |
 17 | #[lez_program]
@@ -15,7 +15,7 @@ warning: unused import: `AdminCandidate`
   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
 
 error[E0601]: `main` function not found in crate `$CRATE`
-  --> tests/ui/admin_initialize_without_init.rs:40:2
+  --> tests/ui/admin_initialize_without_init.rs:39:2
    |
-40 | }
+39 | }
    |  ^ consider adding a `main` function to `$DIR/tests/ui/admin_initialize_without_init.rs`

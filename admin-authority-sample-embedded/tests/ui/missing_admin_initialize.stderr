@@ -1,4 +1,4 @@
-error: `initialize` creates the embedding account `config` and must carry #[admin_initialize]; without it the program ships born renounced
+error: struct `ProgConfig` carries a #[admin_slot] field but no fn carries #[admin_initialize]; the embedded slot would ship born renounced. Anchor the account-creating instruction with #[admin_initialize], or remove the #[admin_slot] marker for dedicated mode
   --> tests/ui/missing_admin_initialize.rs:16:1
    |
 16 | #[lez_program]
