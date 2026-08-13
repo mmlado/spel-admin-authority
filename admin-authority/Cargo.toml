@@ -32,6 +32,8 @@ wrapper = "require_admin"
 [package.metadata.spel.embedded]
 skip = ["admin_initialize"]
 state_type = "admin_authority::AdminConfig"
+anchor_attr = "admin_initialize"
+anchor_role = "admin_config"
 
 [[package.metadata.spel.bound_args]]
 arg = "offset"

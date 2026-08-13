@@ -1,5 +1,0 @@
-error[E0080]: evaluation panicked: the marker offset 32 disagrees with ProgConfig::ADMIN_SLOT_OFFSET; a field before the #[admin_slot] field changed without the marker following
-  --> tests/ui/marker_offset_disagreement.rs:16:1
-   |
-16 | #[lez_program]
-   | ^^^^^^^^^^^^^^ evaluation of `fixture::_` failed here
