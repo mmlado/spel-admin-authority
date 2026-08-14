@@ -7,9 +7,9 @@ license.workspace = true
 [dependencies]
 borsh = { version = "1", features = ["derive"] }
 admin-authority = { path = "../admin-authority" }
-spel-framework = { git = "https://github.com/mmlado/spel.git", rev = "7b954dbb572f611fbe5ebaa00b75aaa029803e3b" }
+spel-framework = { git = "https://github.com/mmlado/spel.git", rev = "bbd887728d6c00accccbade5941256e8a43af6b6" }
 nssa_core = { git = "https://github.com/logos-blockchain/logos-execution-zone.git", tag = "v0.2.0", package = "lee_core" }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-spel-framework-core = { git = "https://github.com/mmlado/spel.git", rev = "7b954dbb572f611fbe5ebaa00b75aaa029803e3b", features = ["idl-gen"] }
+spel-framework-core = { git = "https://github.com/mmlado/spel.git", rev = "bbd887728d6c00accccbade5941256e8a43af6b6", features = ["idl-gen"] }

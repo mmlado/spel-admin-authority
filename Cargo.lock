@@ -470,9 +470,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.4.2"
+version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d262e149917187838d5b42777c8253bcb64500067342904e7d429499a6f277e"
+checksum = "509591b7bcd67f4ef775afad7662703b4935daaa6ec0e5605cfb1090b32a2b6d"
 dependencies = [
  "find-msvc-tools",
  "shlex",
@@ -841,9 +841,9 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "find-msvc-tools"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26b73573e6edcd2af0cdf47bd6cb58f0b3839491263c314eaad1ccf24430e1de"
+checksum = "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890"
 
 [[package]]
 name = "fnv"
@@ -1956,7 +1956,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 [[package]]
 name = "spel-authority"
 version = "0.1.0"
-source = "git+https://github.com/mmlado/spel-authority.git?rev=869249d197121fb667a744e216df9a3b76c3d764#869249d197121fb667a744e216df9a3b76c3d764"
+source = "git+https://github.com/mmlado/spel-authority.git?rev=d08ba2e93391cc07c58eaafbf949c5d4ba02111e#d08ba2e93391cc07c58eaafbf949c5d4ba02111e"
 dependencies = [
  "borsh",
  "serde",
@@ -1966,7 +1966,7 @@ dependencies = [
 [[package]]
 name = "spel-framework"
 version = "0.5.0"
-source = "git+https://github.com/mmlado/spel.git?rev=7b954dbb572f611fbe5ebaa00b75aaa029803e3b#7b954dbb572f611fbe5ebaa00b75aaa029803e3b"
+source = "git+https://github.com/mmlado/spel.git?rev=bbd887728d6c00accccbade5941256e8a43af6b6#bbd887728d6c00accccbade5941256e8a43af6b6"
 dependencies = [
  "borsh",
  "lee_core",
@@ -1978,7 +1978,7 @@ dependencies = [
 [[package]]
 name = "spel-framework-core"
 version = "0.5.0"
-source = "git+https://github.com/mmlado/spel.git?rev=7b954dbb572f611fbe5ebaa00b75aaa029803e3b#7b954dbb572f611fbe5ebaa00b75aaa029803e3b"
+source = "git+https://github.com/mmlado/spel.git?rev=bbd887728d6c00accccbade5941256e8a43af6b6#bbd887728d6c00accccbade5941256e8a43af6b6"
 dependencies = [
  "base58",
  "borsh",
@@ -1995,7 +1995,7 @@ dependencies = [
 [[package]]
 name = "spel-framework-macros"
 version = "0.5.0"
-source = "git+https://github.com/mmlado/spel.git?rev=7b954dbb572f611fbe5ebaa00b75aaa029803e3b#7b954dbb572f611fbe5ebaa00b75aaa029803e3b"
+source = "git+https://github.com/mmlado/spel.git?rev=bbd887728d6c00accccbade5941256e8a43af6b6#bbd887728d6c00accccbade5941256e8a43af6b6"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -42,7 +42,7 @@ mod admin_authority_sample_embedded {
     /// Creates the embedding account and bootstraps the admin slot in
     /// the same instruction: the slot is born initialized, there is no
     /// admin_initialize in embedded mode.
-    #[admin_initialize]
+    #[initialize]
     #[instruction]
     pub fn initialize(
         #[account(init, pda = literal("prog_config"))] mut config: AccountWithMetadata,
