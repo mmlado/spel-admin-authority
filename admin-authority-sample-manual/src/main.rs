@@ -2,9 +2,23 @@ use admin_authority::require_admin;
 use spel_framework::prelude::*;
 
 #[account_type]
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Default)]
 pub struct ProgramConfig {
     pub value: u64,
+}
+
+impl ProgramConfig {
+    fn write_to(&self, account: &mut AccountWithMetadata) -> Result<(), SpelError> {
+        account.account.data = borsh::to_vec(self)
+            .map_err(|_| SpelError::SerializationError {
+                message: "encoding failed".into(),
+            })?
+            .try_into()
+            .map_err(|_| SpelError::SerializationError {
+                message: "data too large".into(),
+            })?;
+        Ok(())
+    }
 }
 
 #[lez_program]
@@ -15,15 +29,16 @@ mod admin_authority_sample_manual {
     pub fn initialize(
         #[account(init, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
         #[account(signer)] caller: AccountWithMetadata,
-        #[account(init, pda = literal("program_config"))] prog_config: AccountWithMetadata,
+        #[account(init, pda = literal("program_config"))] mut prog_config: AccountWithMetadata,
     ) -> SpelResult {
         AdminConfig::bootstrap(
             &mut admin_config,
             admin_authority::AdminCandidate::Signer,
             &caller,
         )?;
+        ProgramConfig::default().write_to(&mut prog_config)?;
         Ok(SpelOutput::execute(
-            vec![admin_config, prog_config, caller],
+            vec![admin_config, caller, prog_config],
             vec![],
         ))
     }
@@ -46,7 +61,7 @@ mod admin_authority_sample_manual {
                 message: "data too large".into(),
             })?;
         Ok(SpelOutput::execute(
-            vec![admin_config, config, caller],
+            vec![admin_config, caller, config],
             vec![],
         ))
     }
@@ -100,7 +115,7 @@ mod test {
         let output = admin_authority_sample_manual::update_value(admin_config, caller, config, 42)
             .expect("admin call must succeed");
 
-        let post = &output.post_states[1];
+        let post = &output.post_states[2];
         let state = ProgramConfig::try_from_slice(post.account().data.as_ref()).unwrap();
         assert_eq!(state.value, 42);
     }
