@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use spel_framework_core::dep_walk::resolve_dep_graph;
 use spel_framework_core::idl::IdlSeed;
 use spel_framework_core::idl_gen::generate_idl_from_file_with_deps;
 
@@ -8,19 +9,26 @@ fn idl_contains_user_instr_and_admin_trio() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let src = PathBuf::from(manifest_dir).join("src/main.rs");
 
-    // Pass the path-dep dirs the real producers scan, so the types array is
-    // populated and can be pinned below.
-    let deps = [
-        PathBuf::from(manifest_dir)
-            .join("../admin-authority")
-            .canonicalize()
-            .expect("admin-authority dir"),
-        PathBuf::from(manifest_dir)
-            .join("../../spel-authority")
-            .canonicalize()
-            .expect("spel-authority dir"),
-    ];
-    let idl = generate_idl_from_file_with_deps(&src, &deps).expect("IDL generation failed");
+    // The graph resolves this crate's own manifest, so the extension
+    // sources come from cargo's checkouts at the pinned revs, the same
+    // sources the sample's build reads. No sibling checkout can drift
+    // the pin.
+    let graph = resolve_dep_graph(&src, true, &mut |_| {});
+    assert!(
+        graph.metadata_failure.is_none(),
+        "dependency resolution degraded: {:?}",
+        graph.metadata_failure
+    );
+    // The transitive scan recurses deeper than a test thread's 2 MB
+    // stack. The CLI runs the same scan on the main thread's 8 MB, so
+    // the test matches that.
+    let idl = std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(move || generate_idl_from_file_with_deps(&src, &graph.transitive_dirs))
+        .expect("spawns")
+        .join()
+        .expect("no panic")
+        .expect("IDL generation failed");
 
     // AdminCandidate is a `pub type` alias of authority::AuthorityCandidate.
     // The collector must resolve the alias and emit the enum def under the
