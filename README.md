@@ -40,7 +40,7 @@ Adding `#[require_admin]` to an instruction marks it admin-gated: it inserts a c
 
 ## Embedded mode
 
-The admin slot can live inside one of the consumer's own accounts instead of a dedicated Config PDA. Declared program-wide on the marker, role kwarg plus byte offset:
+The admin slot can live inside one of the consumer's own accounts instead of a dedicated Config PDA. The marker names the embedding account; the byte offset derives from the `#[admin_slot]` field marker:
 
 ```rust
 #[account_type]
@@ -53,7 +53,7 @@ pub struct ProgConfig {
 }
 
 #[lez_program]
-#[admin_authority(admin_config = config, offset = 32)]
+#[admin_authority(admin_config = config)]
 mod my_program {
     use admin_authority::admin_initialize;
 
@@ -73,11 +73,11 @@ mod my_program {
 What changes versus dedicated mode:
 
 - **No `admin_initialize` instruction.** The consumer marks its own account-creating instruction with `#[admin_initialize]` and the bootstrap is injected: the caller is installed as admin in the transaction that creates the account, so the slot is born initialized and there is no init front-running window in embedded mode. An account created without the bootstrap is born renounced, permanently.
-- **`#[admin_slot]` marks the field.** The marker derives an `ADMIN_SLOT_OFFSET` const and a layout test, and the build fails if the marker position and the declared `offset` disagree, for example after a field is added above the slot.
-- **Everything retargets.** Gates read the slot at the declared offset from the embedding account, `admin_transfer` and `admin_renounce` operate on it (writes splice only the 32-byte window, neighboring consumer fields survive), and the IDL shows the embedding account everywhere the dedicated PDA used to appear.
-- **The offset is never in a transaction.** It is compiled into the program as a literal at every call site; the IDL carries no offset argument. Changing it means different bytecode, which on LEZ is a different program.
+- **`#[admin_slot]` states the layout, once.** The field marker derives an `ADMIN_SLOT_OFFSET` const, computed by rustc from the preceding fields, plus a layout test pinning it to real serialization. Add a field above the slot and everything follows automatically. An explicit `offset = <bytes>` on the marker stays supported; when present, the build fails if it disagrees with the derived const.
+- **Everything retargets.** Gates read the slot at the derived offset from the embedding account, `admin_transfer` and `admin_renounce` operate on it (writes splice only the 32-byte window, neighboring consumer fields survive), and the IDL shows the embedding account everywhere the dedicated PDA used to appear.
+- **The offset is never in a transaction.** It is compiled into the program at every call site; the IDL carries no offset argument. Changing the layout means different bytecode, which on LEZ is a different program.
 - **The marker is the only writer of location kwargs.** Writing `admin_config = ...` or `offset = ...` on a gate by hand is a compile error in embedded mode; the `caller` kwarg stays available.
-- **Layout obligations.** The embedded `AdminConfig` field must sit at the declared offset with only fixed-size fields before it, and the embedding account must be declared under the marker's name in every instruction that declares it.
+- **Layout obligations.** Only fixed-size fields may precede the `#[admin_slot]` field, exactly one struct may carry the marker, and the embedding account must be declared under the marker's name in every instruction that declares it.
 
 Embedded mode removes one account from every gated transaction. Design record: [ADR-0007](docs/adr/0007-embedded-account-support.md). Dry-run walkthrough: `scripts/dry-run-embedded.sh`, expected output in [`docs/dry-run-embedded-output.txt`](docs/dry-run-embedded-output.txt).
 
