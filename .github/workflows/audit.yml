@@ -1,5 +1,9 @@
 name: audit
 
+permissions:
+  contents: read
+  checks: write
+
 on:
   schedule:
     - cron: "0 6 * * 1"
