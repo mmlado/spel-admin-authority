@@ -1,5 +1,11 @@
 # SPEL Admin Authority
 
+[![CI](https://github.com/mmlado/spel-admin-authority/actions/workflows/ci.yml/badge.svg)](https://github.com/mmlado/spel-admin-authority/actions/workflows/ci.yml)
+[![Consumer build](https://github.com/mmlado/spel-admin-authority/actions/workflows/consumer-build.yml/badge.svg)](https://github.com/mmlado/spel-admin-authority/actions/workflows/consumer-build.yml)
+[![Version](https://img.shields.io/github/v/tag/mmlado/spel-admin-authority?label=version)](https://github.com/mmlado/spel-admin-authority/releases)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE-MIT)
+[![MSRV](https://img.shields.io/badge/MSRV-1.88-93450a?logo=rust)](Cargo.toml)
+
 Single-admin authority primitive for LEZ programs. Provides a standardised way to gate privileged instructions behind a transferable, renounceable admin, integrated as two SPEL macros so consumers add it with one or two annotations.
 
 ## What it does
@@ -113,11 +119,11 @@ The framework discovers extensions among the consumer's direct dependencies, whe
 
 ```toml
 [dependencies]
-admin-authority = { git = "https://github.com/mmlado/spel-admin-authority", branch = "m3" }
-spel-framework  = { git = "https://github.com/mmlado/spel", branch = "feat/admin_authority_m3" }
+admin-authority = { git = "https://github.com/mmlado/spel-admin-authority", tag = "v0.1.0" }
+spel-framework  = { git = "https://github.com/mmlado/spel", branch = "main" }
 ```
 
-A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` source must match the rev this repo's Cargo.toml pins, on `feat/admin_authority_m3` at this milestone. It moves to `logos-co/spel` once the upstream PR merges.
+A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` source must match the rev this repo's Cargo.toml pins, currently the fork's main. It moves to `logos-co/spel` once the extension mechanism reaches an upstream release ([logos-co/spel#257](https://github.com/logos-co/spel/pull/257)).
 
 ## Integration steps
 
@@ -163,6 +169,12 @@ cargo check --workspace
 RISC0_DEV_MODE=1 cargo test --workspace
 cargo expand -p admin-authority-sample
 ```
+
+## Versioning and stability
+
+Semantic versioning covers four surfaces: the public Rust API, the attribute names (`#[admin_authority]`, `#[admin_initialize]`, `#[admin_slot]`, `#[require_admin]`) with their argument grammar, the `[package.metadata.spel]` contract this crate declares, and `AdminConfig`'s 32-byte borsh encoding, an on-chain wire format. While the version is 0.x, a minor bump may change any of them, and each such change is called out in the changelog.
+
+The `spel-framework` dependency pins a fork revision for now. Version 1.0.0 lands when the extension mechanism reaches an upstream release ([logos-co/spel#257](https://github.com/logos-co/spel/pull/257)) and the pin moves to it.
 
 ## License
 

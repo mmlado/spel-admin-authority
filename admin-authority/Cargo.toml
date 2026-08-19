@@ -1,6 +1,10 @@
 [package]
 name = "admin-authority"
 version = "0.1.0"
+rust-version = "1.88"
+description = "Single-admin authority extension for SPEL programs, transferable and renounceable admin with gated instructions"
+repository = "https://github.com/mmlado/spel-admin-authority"
+readme = "README.md"
 edition.workspace = true
 license.workspace = true
 

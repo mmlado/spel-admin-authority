@@ -18,7 +18,7 @@ use syn::{
     punctuated::Punctuated,
 };
 
-/// Marker attribute. Framework detects it on a #[lez_program] module
+/// Marker attribute. Framework detects it on a `#[lez_program]` module
 /// and merges the admin instructions into the dispatcher and IDL.
 ///
 /// Attributes expand top to bottom, so if `#[lez_program]` is still
