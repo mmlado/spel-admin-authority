@@ -1,0 +1,21 @@
+error: `poke` carries #[admin_initialize] but does not declare `config` with #[account(init, ...)]; the bootstrap must only ever run on a freshly created account
+  --> tests/ui/admin_initialize_without_init.rs:17:1
+   |
+17 | #[lez_program]
+   | ^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `lez_program` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `AdminCandidate`
+ --> tests/ui/admin_initialize_without_init.rs:4:23
+  |
+4 | use admin_authority::{AdminCandidate, AdminConfig};
+  |                       ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0601]: `main` function not found in crate `$CRATE`
+  --> tests/ui/admin_initialize_without_init.rs:40:2
+   |
+40 | }
+   |  ^ consider adding a `main` function to `$DIR/tests/ui/admin_initialize_without_init.rs`

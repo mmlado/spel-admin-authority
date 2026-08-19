@@ -1,0 +1,122 @@
+use std::path::PathBuf;
+
+use spel_framework_core::dep_walk::resolve_dep_graph;
+use spel_framework_core::idl::IdlSeed;
+use spel_framework_core::idl_gen::generate_idl_from_file_with_deps;
+
+#[test]
+fn idl_contains_user_instr_and_admin_trio() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let src = PathBuf::from(manifest_dir).join("src/main.rs");
+
+    // The graph resolves this crate's own manifest, so the extension
+    // sources come from cargo's checkouts at the pinned revs, the same
+    // sources the sample's build reads. No sibling checkout can drift
+    // the pin.
+    let graph = resolve_dep_graph(&src, true, &mut |_| {});
+    assert!(
+        graph.metadata_failure.is_none(),
+        "dependency resolution degraded: {:?}",
+        graph.metadata_failure
+    );
+    // The transitive scan recurses deeper than a test thread's 2 MB
+    // stack. The CLI runs the same scan on the main thread's 8 MB, so
+    // the test matches that.
+    let idl = std::thread::Builder::new()
+        .stack_size(8 * 1024 * 1024)
+        .spawn(move || generate_idl_from_file_with_deps(&src, &graph.transitive_dirs))
+        .expect("spawns")
+        .join()
+        .expect("no panic")
+        .expect("IDL generation failed");
+
+    // AdminCandidate is a `pub type` alias of authority::AuthorityCandidate.
+    // The collector must resolve the alias and emit the enum def under the
+    // alias name, or the CLI's defined-type lookup for admin_transfer breaks.
+    assert!(
+        idl.types.iter().any(|t| t.name == "AdminCandidate"),
+        "types array must carry AdminCandidate (alias resolution), got: {:?}",
+        idl.types
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect::<Vec<_>>()
+    );
+
+    let names: Vec<&str> = idl.instructions.iter().map(|i| i.name.as_str()).collect();
+
+    assert!(
+        names.contains(&"update_value"),
+        "missing user instr update_value"
+    );
+    assert!(
+        names.contains(&"admin_initialize"),
+        "missing admin_initialize from path-dep scan"
+    );
+    assert!(
+        names.contains(&"admin_transfer"),
+        "missing admin_transfer from path-dep scan"
+    );
+    assert!(
+        names.contains(&"admin_renounce"),
+        "missing admin_renounce from path-dep scan"
+    );
+
+    let update_value = idl
+        .instructions
+        .iter()
+        .find(|i| i.name == "update_value")
+        .unwrap();
+    let admin_cfg = update_value
+        .accounts
+        .iter()
+        .find(|a| a.name == "admin_config")
+        .expect("update_value must declare the admin_config account");
+    let pda = admin_cfg
+        .pda
+        .as_ref()
+        .expect("admin_config must be a PDA account");
+    assert!(
+        matches!(&pda.seeds[..], [IdlSeed::Const { value }] if value == "admin_config"),
+        "admin_config PDA seed changed: {:?}",
+        pda.seeds
+    );
+
+    // admin_initialize self-elects the caller (ADR-0005): two accounts, no
+    // candidate arg. Fails if a candidate param is ever reintroduced.
+    let admin_init = idl
+        .instructions
+        .iter()
+        .find(|i| i.name == "admin_initialize")
+        .unwrap();
+    assert_eq!(
+        admin_init.accounts.len(),
+        2,
+        "admin_initialize must have exactly config + caller: {:?}",
+        admin_init
+            .accounts
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect::<Vec<_>>()
+    );
+    let config = &admin_init.accounts[0];
+    assert_eq!(config.name, "config");
+    assert!(config.init, "config must be init");
+    let config_pda = config.pda.as_ref().expect("config must be a PDA account");
+    assert!(
+        matches!(&config_pda.seeds[..], [IdlSeed::Const { value }] if value == "admin_config"),
+        "config PDA seed changed: {:?}",
+        config_pda.seeds
+    );
+    let caller = &admin_init.accounts[1];
+    assert_eq!(caller.name, "caller");
+    assert!(caller.signer, "caller must be a signer");
+    assert!(
+        admin_init.args.is_empty(),
+        "admin_initialize must take no args, found: {:?}",
+        admin_init
+            .args
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect::<Vec<_>>()
+    );
+}

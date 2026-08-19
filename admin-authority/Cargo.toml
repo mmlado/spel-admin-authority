@@ -1,0 +1,49 @@
+[package]
+name = "admin-authority"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[package.metadata.spel]
+extension_attr = "admin_authority"
+
+[[package.metadata.spel.inject]]
+  wrapper = "admin_initialize"
+
+[[package.metadata.spel.inject.account]]
+  name = "admin_config"
+  seed = [{ const = "admin_config" }]
+
+[[package.metadata.spel.inject.account]]
+  name = "caller"
+  signer = true
+
+[[package.metadata.spel.inject]]
+wrapper = "require_admin"
+
+  [[package.metadata.spel.inject.account]]
+  name = "admin_config"
+  seed = { const = "admin_config" }
+
+  [[package.metadata.spel.inject.account]]
+  name = "caller"
+  signer = true
+
+[package.metadata.spel.embedded]
+skip = ["admin_initialize"]
+state_type = "admin_authority::AdminConfig"
+
+[[package.metadata.spel.bound_args]]
+arg = "offset"
+from = "offset"
+default = 0
+
+[dependencies]
+borsh = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+spel-framework = { git = "https://github.com/mmlado/spel.git", rev = "f7aa464b2c6c72ef513a25ede16584bca85b722f" }
+admin-authority-macros  = { path = "../admin-authority-macros"}
+authority = { git = "https://github.com/mmlado/spel-authority.git", rev = "a490c765a8a45182d6e90deb20aa4cb12470cd5e", package = "spel-authority" }
+
+[dev-dependencies]
+spel-framework-core = { git = "https://github.com/mmlado/spel.git", rev = "f7aa464b2c6c72ef513a25ede16584bca85b722f", features = ["idl-gen"] }

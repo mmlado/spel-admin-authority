@@ -1,0 +1,21 @@
+error: `initialize` creates the embedding account `config` and must carry #[admin_initialize]; without it the program ships born renounced
+  --> tests/ui/missing_admin_initialize.rs:16:1
+   |
+16 | #[lez_program]
+   | ^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `lez_program` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `AdminCandidate`
+ --> tests/ui/missing_admin_initialize.rs:3:23
+  |
+3 | use admin_authority::{AdminCandidate, AdminConfig};
+  |                       ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0601]: `main` function not found in crate `$CRATE`
+  --> tests/ui/missing_admin_initialize.rs:38:2
+   |
+38 | }
+   |  ^ consider adding a `main` function to `$DIR/tests/ui/missing_admin_initialize.rs`
