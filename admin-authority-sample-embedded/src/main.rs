@@ -46,7 +46,6 @@ mod admin_authority_sample_embedded {
     #[instruction]
     pub fn initialize(
         #[account(init, pda = literal("prog_config"))] mut config: AccountWithMetadata,
-        #[account(signer)] signer: AccountWithMetadata,
     ) -> SpelResult {
         ProgConfig {
             value: 0,
@@ -54,7 +53,9 @@ mod admin_authority_sample_embedded {
             admin: AdminConfig::default(),
         }
         .write_to(&mut config)?;
-        Ok(SpelOutput::execute(vec![config, signer], vec![]))
+        // The signing caller is injected, and the injected bootstrap
+        // installs it as admin in this same transaction.
+        Ok(SpelOutput::execute(vec![config], vec![]))
     }
 
     /// Gated. The embedding account is declared, so injection skips it
@@ -137,12 +138,14 @@ mod tests {
     fn injected_bootstrap_installs_the_caller() {
         let config = acct(9, false);
         let signer = acct(1, true);
-        let out = admin_authority_sample_embedded::initialize(config, signer.clone())
+        // The injected caller is the leading param and the leading post
+        // state; the declared config follows it.
+        let out = admin_authority_sample_embedded::initialize(signer.clone(), config)
             .expect("initialize succeeds");
         let account = out
             .post_states
             .into_iter()
-            .next()
+            .nth(1)
             .expect("config post state")
             .into_account();
         let mut readback = acct(9, false);
