@@ -9,7 +9,7 @@ on:
   push:
     paths:
       - "**/Cargo.lock"
-      - "audit.toml"
+      - ".cargo/audit.toml"
   workflow_dispatch:
 
 jobs:

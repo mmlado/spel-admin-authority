@@ -1,6 +1,6 @@
 [package]
 name = "admin-authority-macros"
-version = "0.1.0"
+version.workspace = true
 rust-version = "1.88"
 description = "Proc-macro attributes for the admin-authority SPEL extension"
 repository = "https://github.com/mmlado/spel-admin-authority"

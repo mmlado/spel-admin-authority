@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-20
+
 ### Changed
 
 - The samples' gated fns take their injected params instead of
@@ -44,5 +46,6 @@ First release.
 - Docs packet: CONTEXT.md vocabulary, the account model and authority
   lifecycle, and ADRs for every design decision.
 
-[Unreleased]: https://github.com/mmlado/spel-admin-authority/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mmlado/spel-admin-authority/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.1
 [0.1.0]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.0
