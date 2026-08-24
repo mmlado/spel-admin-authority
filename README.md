@@ -123,7 +123,7 @@ admin-authority = { git = "https://github.com/mmlado/spel-admin-authority", tag 
 spel-framework  = { git = "https://github.com/mmlado/spel", branch = "main" }
 ```
 
-A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` source must match the rev this repo's Cargo.toml pins, currently the fork's main. It moves to `logos-co/spel` once the extension mechanism reaches an upstream release ([logos-co/spel#257](https://github.com/logos-co/spel/pull/257)).
+A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` source must match the revision this repo's Cargo.toml pins, spelt the same way, cargo treats different git reference kinds as different sources. It moves to `logos-co/spel` once the extension mechanism reaches an upstream release ([logos-co/spel#257](https://github.com/logos-co/spel/pull/257)).
 
 ## Integration steps
 
