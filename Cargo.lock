@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "admin-authority"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "admin-authority-macros",
  "borsh",
@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "admin-authority-macros"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -25,7 +25,7 @@ dependencies = [
 
 [[package]]
 name = "admin-authority-sample"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "admin-authority",
  "borsh",
@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "admin-authority-sample-embedded"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "admin-authority",
  "borsh",
@@ -50,7 +50,7 @@ dependencies = [
 
 [[package]]
 name = "admin-authority-sample-manual"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "admin-authority",
  "borsh",
@@ -1856,7 +1856,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 [[package]]
 name = "spel-authority"
 version = "0.1.0"
-source = "git+https://github.com/mmlado/spel-authority.git?rev=a490c765a8a45182d6e90deb20aa4cb12470cd5e#a490c765a8a45182d6e90deb20aa4cb12470cd5e"
+source = "git+https://github.com/mmlado/spel-authority.git?tag=v0.1.0#1af18a91f44a0d0d3181b795e448870e44011cde"
 dependencies = [
  "borsh",
  "serde",
