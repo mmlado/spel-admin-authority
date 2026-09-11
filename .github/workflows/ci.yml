@@ -40,6 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # The framework CLI links pcsc through LEZ's wallet crate.
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpcsclite-dev
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: dry-run
