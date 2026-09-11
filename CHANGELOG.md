@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-11
+
+### Changed
+
+- Pin `spel-framework` to upstream `logos-co/spel`, at the commit that
+  merged the extension mechanism. The samples move to LEZ `v0.2.4` with
+  it.
+- Pin `spel-authority` by its `v0.1.1` tag.
+
 ## [0.1.2] - 2026-08-24
 
 ### Changed
@@ -52,7 +61,8 @@ First release.
 - Docs packet: CONTEXT.md vocabulary, the account model and authority
   lifecycle, and ADRs for every design decision.
 
-[Unreleased]: https://github.com/mmlado/spel-admin-authority/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/mmlado/spel-admin-authority/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.3
 [0.1.2]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.2
 [0.1.1]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.1
 [0.1.0]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.0

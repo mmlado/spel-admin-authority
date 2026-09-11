@@ -24,7 +24,7 @@ fn idl_shows_embedded_surface_and_no_initializer_or_offset() {
     // the test matches that.
     let idl = std::thread::Builder::new()
         .stack_size(8 * 1024 * 1024)
-        .spawn(move || generate_idl_from_file_with_deps(&src, &graph.transitive_dirs))
+        .spawn(move || generate_idl_from_file_with_deps(&src, &graph.transitive_dirs, &mut |_| {}))
         .expect("spawns")
         .join()
         .expect("no panic")

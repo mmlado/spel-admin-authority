@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [m3, main]
+    branches: [main]
   pull_request:
 
 env:
@@ -46,13 +46,13 @@ jobs:
       - name: Locate the pinned framework rev
         id: rev
         run: |
-          rev=$(grep -rhoP 'github.com/mmlado/spel(\.git)?", (?:branch|rev) = "\K[^"]+' \
+          rev=$(grep -rhoP 'github.com/logos-co/spel(\.git)?", (?:branch|rev) = "\K[^"]+' \
             --include=Cargo.toml . | head -1)
           echo "rev=$rev" >> "$GITHUB_OUTPUT"
       - name: Check out the framework at the pin
         uses: actions/checkout@v4
         with:
-          repository: mmlado/spel
+          repository: logos-co/spel
           ref: ${{ steps.rev.outputs.rev }}
           path: framework-pin
       - name: Prefetch dependency sources (IDL type collection reads git checkouts)

@@ -119,11 +119,11 @@ The framework discovers extensions among the consumer's direct dependencies, whe
 
 ```toml
 [dependencies]
-admin-authority = { git = "https://github.com/mmlado/spel-admin-authority", tag = "v0.1.0" }
-spel-framework  = { git = "https://github.com/mmlado/spel", branch = "main" }
+admin-authority = { git = "https://github.com/mmlado/spel-admin-authority", tag = "v0.1.3" }
+spel-framework  = { git = "https://github.com/logos-co/spel", rev = "8183b011b1a00dbc73ca9209f6b902c622d899af" }
 ```
 
-A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` source must match the revision this repo's Cargo.toml pins, spelt the same way, cargo treats different git reference kinds as different sources. It moves to `logos-co/spel` once the extension mechanism reaches an upstream release ([logos-co/spel#257](https://github.com/logos-co/spel/pull/257)).
+A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` source must match the revision this repo's Cargo.toml pins, spelt the same way, cargo treats different git reference kinds as different sources. The rev is the upstream commit that merged the extension mechanism ([logos-co/spel#257](https://github.com/logos-co/spel/pull/257)). It becomes a tag once upstream cuts a release that contains it.
 
 ## Integration steps
 

@@ -8,7 +8,8 @@ fn idl_contains_manual_instructions_and_no_injected_trio() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let src = PathBuf::from(manifest_dir).join("src/main.rs");
 
-    let idl = generate_idl_from_file_with_deps(&src, &[]).expect("IDL generation failed");
+    let idl =
+        generate_idl_from_file_with_deps(&src, &[], &mut |_| {}).expect("IDL generation failed");
 
     let names: Vec<&str> = idl.instructions.iter().map(|i| i.name.as_str()).collect();
 
