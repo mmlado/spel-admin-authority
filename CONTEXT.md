@@ -68,7 +68,7 @@ The explicit style: the consumer writes the `admin_config` and `caller` params o
 _Avoid_: "strict mode" as a build mode (superseded; declaration is a style choice, not a mode)
 
 **Attribute-order convention (`#[require_admin]` + `#[instruction]`)**:
-No longer required. It mattered when `#[require_admin]` scraped `#[account]` params for shape validation, so it had to run before the `#[instruction]` shim stripped them. Since `#[require_admin]` now reads `config`/`signer` from attribute args and references only the param idents (which the shim leaves intact), the order of `#[require_admin]` and `#[instruction]` no longer changes the result.
+No longer required. It mattered when `#[require_admin]` scraped `#[account]` params for shape validation, so it had to run before `#[instruction]` stripped them. Since `#[require_admin]` now reads `config`/`signer` from attribute args and references only the param idents (which the strip leaves intact), the order of `#[require_admin]` and `#[instruction]` no longer changes the result.
 _Avoid_: reintroducing an ordering rule for a macro that no longer reads `#[account]`
 
 **Param injection**:
@@ -92,7 +92,7 @@ The off-chain flow that produces a multi-signature transaction, needed because a
 _Avoid_: dual-build (both machines constructing the message independently; nonce drift breaks the signatures); blind signing (co-signer must see the decoded instruction before signing)
 
 **admin-authority-macros (sub-crate)**:
-Proc-macro crate that ships alongside the `admin-authority` library. Provides `#[admin_authority]` (marker, pass-through), `#[require_admin]` (reads `config`/`signer` attribute args and prepends the runtime check by re-expansion), and an internal `#[instruction]` shim that strips `#[account(...)]` helper attrs so the library's own source compiles in isolation. Required because attribute macros must live in a `proc-macro = true` crate, separate from the runtime library.
+Proc-macro crate that ships alongside the `admin-authority` library. Provides `#[admin_authority]` (marker, pass-through) and `#[require_admin]` (reads `config`/`signer` attribute args and prepends the runtime check by re-expansion). Required because attribute macros must live in a `proc-macro = true` crate, separate from the runtime library. `#[instruction]` is not one of them: the library re-exports the framework's, which strips the `#[account(...)]` helper attrs itself when it expands outside `#[lez_program]`.
 _Avoid_: "macros crate" (too generic); merging into `admin-authority` (cannot, proc-macro crates can't export non-macro items)
 
 ## Relationships

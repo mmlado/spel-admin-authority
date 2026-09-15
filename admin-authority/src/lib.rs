@@ -7,7 +7,8 @@
 
 use spel_framework::prelude::*;
 
-pub use admin_authority_macros::{admin_authority, admin_initialize, instruction, require_admin};
+pub use admin_authority_macros::{admin_authority, admin_initialize, require_admin};
+pub use spel_framework::instruction;
 
 mod config;
 mod errors;
