@@ -15,12 +15,11 @@ pub struct ProgConfig {
 }
 
 #[lez_program]
-#[admin_authority(admin_config = config, offset = 32)]
+#[admin_authority]
 mod fixture {
     use admin_authority::{admin_initialize, require_admin};
 
     #[instruction]
-    #[admin_initialize]
     pub fn initialize(
         #[account(init, pda = literal("prog_config"))] mut config: AccountWithMetadata,
         #[account(signer)] signer: AccountWithMetadata,

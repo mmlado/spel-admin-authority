@@ -14,7 +14,7 @@ pub struct ProgConfig {
 }
 
 #[lez_program]
-#[admin_authority(admin_config = config, offset = 32)]
+#[admin_authority]
 mod fixture {
     use admin_authority::require_admin;
 

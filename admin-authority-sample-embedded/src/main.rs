@@ -35,14 +35,14 @@ impl ProgConfig {
 }
 
 #[lez_program]
-#[admin_authority(admin_config = config, offset = 32)]
+#[admin_authority]
 mod admin_authority_sample_embedded {
     use admin_authority::{admin_initialize, require_admin};
 
     /// Creates the embedding account and bootstraps the admin slot in
     /// the same instruction: the slot is born initialized, there is no
     /// admin_initialize in embedded mode.
-    #[admin_initialize]
+    #[initialize]
     #[instruction]
     pub fn initialize(
         #[account(init, pda = literal("prog_config"))] mut config: AccountWithMetadata,

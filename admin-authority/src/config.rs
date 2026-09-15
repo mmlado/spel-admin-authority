@@ -18,6 +18,7 @@ use crate::errors::*;
 /// deployment check. Always paired with a `new_account` param that
 /// carries the chain-state evidence.
 pub type AdminCandidate = AuthorityCandidate;
+
 /// On-chain admin authority state for a single program.
 ///
 /// Stored in the program's Config PDA at `(program_id, "admin_config")`.
