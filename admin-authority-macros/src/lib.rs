@@ -1,9 +1,10 @@
 //! Proc-macro companion crate for `admin-authority`.
 //!
 //! Provides `#[admin_authority]` (the module marker the framework discovers
-//! by name), `#[require_admin]` (prepends the runtime admin check to a gated
-//! instruction by re-expansion), and an internal `#[instruction]` shim that
-//! strips `#[account(...)]` helper attrs so the library compiles standalone.
+//! by name) and `#[require_admin]` (prepends the runtime admin check to a
+//! gated instruction by re-expansion). `#[instruction]` comes from the
+//! framework, which strips the `#[account(...)]` helper attrs itself when it
+//! expands outside `#[lez_program]`.
 //!
 //! Attribute macros must live in a `proc-macro = true` crate, which cannot
 //! export runtime items. Consumers never depend on this crate directly, the
@@ -14,8 +15,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Expr, FnArg, ItemFn, MetaNameValue, Token, parse_macro_input, parse_quote,
-    punctuated::Punctuated,
+    Expr, ItemFn, MetaNameValue, Token, parse_macro_input, parse_quote, punctuated::Punctuated,
 };
 
 /// Marker attribute. Framework detects it on a `#[lez_program]` module
@@ -210,21 +210,6 @@ pub fn require_admin(attr: TokenStream, item: TokenStream) -> TokenStream {
     }};
 
     func.block.stmts.insert(0, prologue);
-    quote!(#func).into()
-}
-
-/// No-op `#[instruction]` for path-dep-scanned admin fns. Strips
-/// `#[account(...)]` helper attrs from params so rustc accepts the
-/// admin-authority crate compile. The path-dep scanner reads raw source
-/// via `syn::parse_file` and sees the `#[account(...)]` attrs intact.
-#[proc_macro_attribute]
-pub fn instruction(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut func = parse_macro_input!(item as ItemFn);
-    for arg in &mut func.sig.inputs {
-        if let FnArg::Typed(pt) = arg {
-            pt.attrs.retain(|a| !a.path().is_ident("account"));
-        }
-    }
     quote!(#func).into()
 }
 
