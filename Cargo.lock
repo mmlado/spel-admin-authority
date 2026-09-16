@@ -1856,7 +1856,7 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 [[package]]
 name = "spel-authority"
 version = "0.1.1"
-source = "git+https://github.com/mmlado/spel-authority.git?branch=fix%2Fdrop-instruction-shim#8311c7fcac58ea359c39574de25e83b047f22ffd"
+source = "git+https://github.com/mmlado/spel-authority.git?rev=60927123436d576e903fc59ce8259e64b7115095#60927123436d576e903fc59ce8259e64b7115095"
 dependencies = [
  "borsh",
  "serde",
@@ -1866,7 +1866,7 @@ dependencies = [
 [[package]]
 name = "spel-framework"
 version = "0.6.0"
-source = "git+https://github.com/mmlado/spel.git?rev=8dfb80eed7fc259ca8afc7b7c2a9349eb49f9d44#8dfb80eed7fc259ca8afc7b7c2a9349eb49f9d44"
+source = "git+https://github.com/logos-co/spel.git?rev=d0bb659048c3fc6533f51c69e9f7f12382af6dd2#d0bb659048c3fc6533f51c69e9f7f12382af6dd2"
 dependencies = [
  "borsh",
  "lee_core",
@@ -1878,7 +1878,7 @@ dependencies = [
 [[package]]
 name = "spel-framework-core"
 version = "0.6.0"
-source = "git+https://github.com/mmlado/spel.git?rev=8dfb80eed7fc259ca8afc7b7c2a9349eb49f9d44#8dfb80eed7fc259ca8afc7b7c2a9349eb49f9d44"
+source = "git+https://github.com/logos-co/spel.git?rev=d0bb659048c3fc6533f51c69e9f7f12382af6dd2#d0bb659048c3fc6533f51c69e9f7f12382af6dd2"
 dependencies = [
  "base58",
  "borsh",
@@ -1895,7 +1895,7 @@ dependencies = [
 [[package]]
 name = "spel-framework-macros"
 version = "0.6.0"
-source = "git+https://github.com/mmlado/spel.git?rev=8dfb80eed7fc259ca8afc7b7c2a9349eb49f9d44#8dfb80eed7fc259ca8afc7b7c2a9349eb49f9d44"
+source = "git+https://github.com/logos-co/spel.git?rev=d0bb659048c3fc6533f51c69e9f7f12382af6dd2#d0bb659048c3fc6533f51c69e9f7f12382af6dd2"
 dependencies = [
  "proc-macro2",
  "quote",
