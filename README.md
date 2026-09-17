@@ -119,11 +119,11 @@ The framework discovers extensions among the consumer's direct dependencies, whe
 
 ```toml
 [dependencies]
-admin-authority = { git = "https://github.com/mmlado/spel-admin-authority", tag = "v0.1.3" }
-spel-framework  = { git = "https://github.com/logos-co/spel", rev = "8183b011b1a00dbc73ca9209f6b902c622d899af" }
+admin-authority = { git = "https://github.com/mmlado/spel-admin-authority", tag = "v0.1.4" }
+spel-framework  = { git = "https://github.com/logos-co/spel", rev = "d0bb659048c3fc6533f51c69e9f7f12382af6dd2" }
 ```
 
-A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` source must match the revision this repo's Cargo.toml pins, spelt the same way, cargo treats different git reference kinds as different sources. The rev is the upstream commit that merged the extension mechanism ([logos-co/spel#257](https://github.com/logos-co/spel/pull/257)). It becomes a tag once upstream cuts a release that contains it.
+A local checkout referenced by `path` works the same way. `admin-authority-macros` is pulled in transitively via `admin-authority`, no need to declare it directly. The `spel-framework` source must match the revision this repo's Cargo.toml pins, spelt the same way, cargo treats different git reference kinds as different sources. The rev is the upstream commit that merged the standalone `#[instruction]` fix ([logos-co/spel#276](https://github.com/logos-co/spel/pull/276)), which this release relies on. It becomes a tag once upstream cuts a release that contains it.
 
 ## Integration steps
 

@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-17
+
 ### Changed
 
 - `#[instruction]` is re-exported from `spel-framework` rather than shipped as a shim in `admin-authority-macros`. The framework's own `#[instruction]` strips the `#[account(...)]` helper attrs when it expands outside `#[lez_program]`, so the hand-written copy had nothing left to do (logos-co/spel#271).
+- Pin `spel-framework` to `logos-co/spel` at d0bb659, the commit that
+  merged that fix.
+- Pin `spel-authority` by its `v0.1.2` tag.
 
 ## [0.1.3] - 2026-09-11
 
@@ -65,7 +70,8 @@ First release.
 - Docs packet: CONTEXT.md vocabulary, the account model and authority
   lifecycle, and ADRs for every design decision.
 
-[Unreleased]: https://github.com/mmlado/spel-admin-authority/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/mmlado/spel-admin-authority/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.4
 [0.1.3]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.3
 [0.1.2]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.2
 [0.1.1]: https://github.com/mmlado/spel-admin-authority/releases/tag/v0.1.1
