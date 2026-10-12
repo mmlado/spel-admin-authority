@@ -8,6 +8,7 @@ version = "0.1.4"
 dependencies = [
  "admin-authority-macros",
  "borsh",
+ "lee_core",
  "serde",
  "spel-authority",
  "spel-framework",

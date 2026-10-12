@@ -38,6 +38,10 @@ pub enum AdminError {
     /// the account's data. Layout error: the declared offset and the
     /// account's actual size disagree.
     SlotOutOfBounds,
+    /// The admin key, or a `Signer` transfer target, is owned by no
+    /// program. LEZ would strand it after one transaction. Run
+    /// `wallet auth-transfer init` on the key first.
+    UnownedSigner,
 }
 
 impl core::fmt::Display for AdminError {
@@ -54,6 +58,7 @@ impl core::fmt::Display for AdminError {
             AdminError::DecodingFailed => write!(f, "AdminConfig decoding failed"),
             AdminError::AccountDataTooLarge => write!(f, "AdminConfig too large for account data"),
             AdminError::SlotOutOfBounds => write!(f, "embedded slot window out of bounds"),
+            AdminError::UnownedSigner => write!(f, "admin key is owned by no program"),
         }
     }
 }
@@ -76,6 +81,7 @@ impl From<AuthorityError> for AdminError {
             AuthorityError::Renounced => AdminError::Renounced,
             AuthorityError::MissingSignature => AdminError::MissingSignature,
             AuthorityError::SlotOutOfBounds => AdminError::SlotOutOfBounds,
+            AuthorityError::UnownedSigner => AdminError::UnownedSigner,
         }
     }
 }
