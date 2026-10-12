@@ -80,7 +80,7 @@ mod admin_authority_sample_manual {
 #[cfg(test)]
 mod test {
     use super::*;
-    use admin_authority::{AdminCandidate, AdminConfig};
+    use admin_authority::{AdminCandidate, AdminConfig, AdminError};
 
     // A signing key is owned by some program, as `wallet auth-transfer init` leaves it.
     fn acct(id_byte: u8, signed: bool) -> AccountWithMetadata {
@@ -120,12 +120,10 @@ mod test {
 
         let err = admin_authority_sample_manual::update_value(admin_config, caller, config, 42)
             .expect_err("signer is not the current admin");
-        match err {
-            SpelError::Unauthorized { message } => {
-                assert_eq!(message, "signer is not the current admin")
-            }
-            other => panic!("expected Unauthorized, got {other:?}"),
-        }
+        assert_eq!(
+            err.to_string(),
+            SpelError::from(AdminError::NotAdmin).to_string()
+        );
     }
 
     #[test]
@@ -137,12 +135,10 @@ mod test {
 
         let err = admin_authority_sample_manual::update_value(admin_config, caller, config, 42)
             .expect_err("admin authority not initialized");
-        match err {
-            SpelError::Unauthorized { message } => {
-                assert_eq!(message, "admin authority not initialized")
-            }
-            other => panic!("expected Unauthorized, got {other:?}"),
-        }
+        assert_eq!(
+            err.to_string(),
+            SpelError::from(AdminError::NotInitialized).to_string()
+        );
     }
 
     #[test]
@@ -156,12 +152,10 @@ mod test {
 
         let err = admin_authority_sample_manual::update_value(admin_config, caller, config, 42)
             .expect_err("admin authority renounced");
-        match err {
-            SpelError::Unauthorized { message } => {
-                assert_eq!(message, "admin authority renounced")
-            }
-            other => panic!("expected Unauthorized, got {other:?}"),
-        }
+        assert_eq!(
+            err.to_string(),
+            SpelError::from(AdminError::Renounced).to_string()
+        );
     }
 
     #[test]
@@ -197,7 +191,10 @@ mod test {
             AdminCandidate::Signer,
         )
         .expect_err("signer is not the current admin");
-        assert!(matches!(err, SpelError::Unauthorized { .. }));
+        assert_eq!(
+            err.to_string(),
+            SpelError::from(AdminError::NotAdmin).to_string()
+        );
     }
 
     #[test]
@@ -221,6 +218,9 @@ mod test {
             AdminCandidate::Signer,
         )
         .expect_err("admin authority renounced");
-        assert!(matches!(err, SpelError::Unauthorized { .. }));
+        assert_eq!(
+            err.to_string(),
+            SpelError::from(AdminError::Renounced).to_string()
+        );
     }
 }

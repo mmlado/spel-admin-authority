@@ -12,8 +12,10 @@ pub use spel_framework::instruction;
 
 mod config;
 mod errors;
+mod genesis;
 pub use config::*;
 pub use errors::*;
+pub use genesis::*;
 
 extern crate self as admin_authority;
 
@@ -27,15 +29,17 @@ extern crate self as admin_authority;
 /// See ADR-0005. To hand the role to an external keyholder or PDA, call
 /// `admin_transfer` after initializing.
 ///
-/// The Config PDA does not exist until this instruction lands, so any caller
-/// can win the race during the initialization window. LEZ deployment
-/// transactions carry no instructions, so deploy and initialize cannot be
-/// bundled today; send `admin_initialize` immediately after deployment.
+/// A build compiled with `SPEL_ADMIN_GENESIS` (64 hex characters) lets only
+/// that key initialize (ADR-0012). Without it, any caller can win the race
+/// during the initialization window: LEZ deployment transactions carry no
+/// instructions, so deploy and initialize cannot be bundled, and
+/// `admin_initialize` should be sent immediately after deployment.
 #[instruction]
 pub fn admin_initialize(
     #[account(init, pda = literal("admin_config"))] mut config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
 ) -> SpelResult {
+    require_genesis(&caller)?;
     AdminConfig::bootstrap(&mut config, AdminCandidate::Signer, &caller)?;
     Ok(SpelOutput::execute(
         vec![

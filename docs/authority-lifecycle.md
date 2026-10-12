@@ -45,7 +45,7 @@ The two-step handover moves the admin without leaving Initialized:
 
 ## States
 
-**Uninitialized.** The Config PDA at `(program_id, "admin_config")` does not yet exist on-chain. Any caller can submit `admin_initialize`. This period is the **initialization window**.
+**Uninitialized.** The Config PDA at `(program_id, "admin_config")` does not yet exist on-chain. Any caller can submit `admin_initialize`, or only the genesis key when the build carries one. This period is the **initialization window**.
 
 **Initialized.** The Config PDA exists and `admin` holds the current admin's `AccountId`. Every `#[require_admin]`-gated instruction reads this value to authorize the caller.
 
@@ -63,9 +63,9 @@ Uninitialized → Initialized
 
 **Resolution:** self-election, always. The caller becomes admin (`admin = caller.account_id`). There is no candidate argument at initialize: the LEZ duplicate-account rule rejects any transaction listing the same account id twice, so a caller could never pass itself again as candidate evidence (see [ADR-0005](adr/0005-self-election-via-caller.md)). To hand the role to an external keyholder or PDA, initialize first and then call `admin_transfer`.
 
-**Validations:** the Config PDA is enforced as freshly initialized by `#[account(init)]`, the caller's `is_authorized` flag must be true, and the caller's `account_id` must not be `AccountId::default()` (which would put the config into Renounced state at birth).
+**Validations:** with a genesis key in the build, the caller must be that key. The Config PDA is enforced as freshly initialized by `#[account(init)]`, the caller's `is_authorized` flag must be true, some program must own the caller's account, and the caller's `account_id` must not be `AccountId::default()` (which would put the config into Renounced state at birth).
 
-**Failure modes:** `AdminError::InvalidCandidate`.
+**Failure modes:** `AdminError::NotGenesisAdmin`, `AdminError::InvalidCandidate`, `AdminError::UnownedSigner`.
 
 ### `admin_transfer`
 
@@ -163,9 +163,9 @@ Only the owning program can produce a valid seed claim, because LEZ pins `caller
 
 ## Initialization window risk
 
-Between deployment and the first successful `admin_initialize`, anyone can submit `admin_initialize` and become admin. Deployers must send `admin_initialize` immediately after deployment. Bundling with the deployment is not possible today: a LEZ deployment transaction carries only bytecode, no instructions and no accounts.
+Between deployment and the first successful `admin_initialize`, anyone can submit `admin_initialize` and become admin, unless the build carries a genesis key (`SPEL_ADMIN_GENESIS`, ADR-0012). Then only that key can, and anyone else gets `AdminError::NotGenesisAdmin`. Bundling with the deployment is not possible today: a LEZ deployment transaction carries only bytecode, no instructions and no accounts, and so no deployer identity to gate on.
 
-The library provides no protection against front-running this window. By construction, the Config PDA does not yet exist, so there is no stored authority to check against, and LEZ records no deployer identity to gate on.
+In embedded mode the same window sits on the consumer's account-creating instruction. `require_genesis(&caller)` applies the genesis key there.
 
 ## Renounce is terminal
 
