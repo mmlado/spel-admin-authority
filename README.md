@@ -130,9 +130,29 @@ A local checkout referenced by `path` works the same way. `admin-authority-macro
 1. **Annotate the module** with `#[admin_authority]` after `#[lez_program]`. The three admin instructions appear in the IDL automatically.
 2. **Call `admin_initialize`** immediately after deployment; the caller becomes admin. Bundling with the deploy is not possible on LEZ today (deployment transactions carry no instructions). Anything between deployment and the first `admin_initialize` is the [initialization window](docs/authority-lifecycle.md#initialization-window-risk); whoever calls first becomes admin. Want a different admin? Initialize, then `admin_transfer`.
 3. **Gate instructions** by adding `#[require_admin]`. Declaring the `admin_config` and `caller` params is optional, missing ones are injected. Custom names go through the gate's args: `#[require_admin(admin_config = my_cfg, caller = owner)]`.
-4. **Transfer or renounce** via the injected `admin_transfer` and `admin_renounce` instructions. Transfer takes an `AdminCandidate` (signer or PDA) paired with the corresponding `new_account`.
+4. **Transfer or renounce** via the injected `admin_transfer` and `admin_renounce` instructions. Transfer takes an `AdminCandidate` (signer or PDA) paired with the corresponding `new_account`. A transfer to a signer needs the new admin's signature too, see [Transferring to a keyholder](#transferring-to-a-keyholder).
 
 The [authority lifecycle document](docs/authority-lifecycle.md) covers the state machine, validation rules at each transition, and the program-as-admin path through CPI.
+
+## Transferring to a keyholder
+
+`admin_transfer` to a `Signer` candidate is a multi-signature transaction. The current admin signs as `caller` and the new admin signs to accept, both on the same message. The `spel` CLI collects the second signature through a partial-transaction file:
+
+```bash
+# Current admin: build and sign, write the transaction to a file instead of submitting it.
+spel --idl program-idl.json --program <program-id> \
+  --co-signer <new-admin-account-id> --export handover.json -- \
+  admin-transfer --caller <current-admin-account-id> \
+  --new-account <new-admin-account-id> --candidate Signer
+
+# New admin, on their own machine: inspect and sign. Works offline.
+spel sign handover.json
+
+# Anyone with a node connection: submit once both signatures are in.
+spel submit handover.json
+```
+
+`--co-signer` and `--export` are global flags and go before the `--` separator. The CLI rejects them after it. The [witness exchange section](https://github.com/logos-co/spel#multi-signature-transactions-witness-exchange) of the SPEL README describes the file format.
 
 ## Transaction size overhead
 
@@ -150,7 +170,7 @@ The embedded shapes are also confirmed end to end against a local LEZ v0.2.0 sta
 - **Renounce is terminal.** `admin_renounce` writes `AccountId::default()` and that is the end. No recovery path by design.
 - **PDA admins via CPI.** A program-owned PDA can be the admin. The owning program calls the gated instruction via a chained_call and declares its admin PDA in `caller-pda-seeds`; LEZ propagates `is_authorized` to the callee. See the lifecycle doc.
 - **Transfer history.** Not recorded on-chain. The current admin is always readable from the Config PDA; historical transfers require an off-chain indexer.
-- **Signer transfers on-chain.** A transfer to a `Signer` candidate needs the new admin's co-signature on the same transaction. The CLI exercises this in dry-run today; submitting it on-chain uses the multi-signature exchange flow proposed upstream in [logos-co/spel#246](https://github.com/logos-co/spel/pull/246).
+- **Signer transfers need both signatures.** A transfer to a `Signer` candidate only lands with the new admin's signature on the same transaction, which proves the keyholder consents. See [Transferring to a keyholder](#transferring-to-a-keyholder).
 
 ## Support
 
