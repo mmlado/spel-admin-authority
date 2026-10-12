@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dry-run the admin-authority sample's four instructions via the SPEL CLI.
+# Dry-run the admin-authority sample's instructions via the SPEL CLI.
 #
 # Fully offline: dry-run resolves accounts, PDAs, and instruction data and
 # prints the transaction without submitting. No node, no built guest binary
@@ -48,10 +48,7 @@ run admin-renounce --caller "$CALLER"
 
 run admin-initialize --caller "$CALLER"
 
-# NOTE: a Signer-candidate transfer is only valid on-chain when the NEW admin
-# also signs (is_authorized comes from the tx witness set). The CLI's
-# witness-exchange feature (partial-tx blob, spel sign / spel submit) is
-# planned separately; until it lands this dry-run shows the shape only.
+# On chain a Signer candidate co-signs (spel --co-signer --export, sign, submit).
 run admin-transfer --caller "$CALLER" --new-account "$NEW_ACCOUNT" --candidate Signer
 
 # Payload variant: transfer admin to a PDA, passing the enum as JSON.
@@ -59,6 +56,9 @@ PDA_PROGRAM="$(printf 'cd%.0s' {1..32})"
 PDA_SEED="$(printf 'ef%.0s' {1..32})"
 run admin-transfer --caller "$CALLER" --new-account "$NEW_ACCOUNT" \
     --candidate "{\"Pda\": {\"program_id\": \"$PDA_PROGRAM\", \"seed\": \"$PDA_SEED\"}}"
+
+run admin-nominate --caller "$CALLER" --new-admin "$NEW_ACCOUNT"
+run admin-accept --caller "$NEW_ACCOUNT"
 
 echo
 echo "Done."

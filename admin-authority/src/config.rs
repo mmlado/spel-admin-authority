@@ -24,7 +24,8 @@ pub type AdminCandidate = AuthorityCandidate;
 /// Created once via `admin_initialize`; cannot be reinitialized. Wraps the
 /// shared [`AuthoritySlot`], whose holder is the current admin and whose
 /// `AccountId::default()` sentinel marks the renounced state. The borsh
-/// layout is a single 32-byte `AccountId`, unchanged by the extraction.
+/// layout is 64 bytes: the admin, then the nominee (zeros when there is
+/// none).
 #[account_type]
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct AdminConfig {
@@ -99,6 +100,34 @@ impl AdminConfig {
         Self::decode(&account.account.data)
     }
 
+    /// Loads config from an account the calling program owns. For readers
+    /// whose account is not already pinned to the program by a PDA
+    /// constraint.
+    ///
+    /// Returns `AdminError::ConfigNotOwned` when `program_id` does not own
+    /// the account, before anything is decoded.
+    pub fn from_owned_account(
+        account: &AccountWithMetadata,
+        program_id: ProgramId,
+    ) -> Result<Self, AdminError> {
+        if account.account.program_owner != program_id {
+            return Err(AdminError::ConfigNotOwned);
+        }
+        Self::from_account(account)
+    }
+
+    /// [`AdminConfig::from_owned_account`] for the window at `offset`.
+    pub fn from_owned_account_at(
+        account: &AccountWithMetadata,
+        offset: usize,
+        program_id: ProgramId,
+    ) -> Result<Self, AdminError> {
+        if account.account.program_owner != program_id {
+            return Err(AdminError::ConfigNotOwned);
+        }
+        Self::from_account_at(account, offset)
+    }
+
     /// Loads the config from an account's data at `offset`. Convenience
     /// wrapper over [`AdminConfig::decode_at`].
     pub fn from_account_at(
@@ -120,6 +149,38 @@ impl AdminConfig {
         let next = candidate.validate(new_account)?;
         self.slot.transfer_to(next)?;
         Ok(())
+    }
+
+    /// Names `new_admin` to take over, replacing any earlier nominee. The
+    /// admin does not change until the nominee calls [`Self::accept`].
+    /// `AccountId::default()` cancels the nomination.
+    ///
+    /// Only the current admin may call (`assert_admin` runs first).
+    pub fn nominate(
+        &mut self,
+        current: &AccountWithMetadata,
+        new_admin: AccountId,
+    ) -> Result<(), AdminError> {
+        self.slot.assert(current)?;
+        self.slot.nominate(new_admin);
+        Ok(())
+    }
+
+    /// Installs the nominee as admin on the nominee's own signature. A PDA
+    /// nominee signs through a chained call from its owning program.
+    ///
+    /// Returns `AdminError::Renounced` once renounced, then the slot's
+    /// `NoNomination`, `MissingSignature`, `NotNominee` or `UnownedSigner`.
+    pub fn accept(&mut self, nominee: &AccountWithMetadata) -> Result<(), AdminError> {
+        if self.slot.is_renounced() {
+            return Err(AdminError::Renounced);
+        }
+        self.slot.accept(nominee).map_err(Into::into)
+    }
+
+    /// The nominee waiting to accept, if any.
+    pub fn nominee(&self) -> Option<AccountId> {
+        self.slot.pending()
     }
 
     /// Permanently zeros the admin to `AccountId::default()`, the renounced
@@ -222,6 +283,46 @@ impl AdminConfig {
         state.write_to_at(config_account, offset)
     }
 
+    /// Loads config from account, nominates `new_admin`, writes back.
+    pub fn perform_nominate(
+        config_account: &mut AccountWithMetadata,
+        current: &AccountWithMetadata,
+        new_admin: AccountId,
+    ) -> Result<(), AdminError> {
+        Self::perform_nominate_at(config_account, 0, current, new_admin)
+    }
+
+    /// Loads config from account at `offset`, nominates `new_admin`, writes back.
+    pub fn perform_nominate_at(
+        config_account: &mut AccountWithMetadata,
+        offset: usize,
+        current: &AccountWithMetadata,
+        new_admin: AccountId,
+    ) -> Result<(), AdminError> {
+        let mut state = Self::from_account_at(config_account, offset)?;
+        state.nominate(current, new_admin)?;
+        state.write_to_at(config_account, offset)
+    }
+
+    /// Loads config from account, lets the nominee accept, writes back.
+    pub fn perform_accept(
+        config_account: &mut AccountWithMetadata,
+        nominee: &AccountWithMetadata,
+    ) -> Result<(), AdminError> {
+        Self::perform_accept_at(config_account, 0, nominee)
+    }
+
+    /// Loads config from account at `offset`, lets the nominee accept, writes back.
+    pub fn perform_accept_at(
+        config_account: &mut AccountWithMetadata,
+        offset: usize,
+        nominee: &AccountWithMetadata,
+    ) -> Result<(), AdminError> {
+        let mut state = Self::from_account_at(config_account, offset)?;
+        state.accept(nominee)?;
+        state.write_to_at(config_account, offset)
+    }
+
     /// Loads config from account, renounce admin, writes back.
     pub fn perform_renounce(
         config_account: &mut AccountWithMetadata,
@@ -245,13 +346,16 @@ impl AdminConfig {
 }
 
 impl spel_framework::FixedBorshSize for AdminConfig {
-    const SIZE: usize = 32;
+    const SIZE: usize = 64;
 }
 
 impl spel_framework::SlotLayoutProbe for AdminConfig {
     fn probe() -> Self {
-        AdminConfig::initialize(AccountId::new([0xA5; 32]))
-            .expect("the probe admin is is not the renounced sentinel")
+        let mut probe = AdminConfig::initialize(AccountId::new([0xA5; 32]))
+            .expect("the probe admin is not the renounced sentinel");
+        // Non-zero across the whole window, so a misplaced slot shows.
+        probe.slot.nominate(AccountId::new([0x5A; 32]));
+        probe
     }
 }
 
@@ -272,9 +376,14 @@ mod tests {
         );
     }
 
+    // A signing key is owned by some program, as `wallet auth-transfer init` leaves it.
     fn acct(id_byte: u8, signed: bool) -> AccountWithMetadata {
+        let program_owner = if signed { [5; 8] } else { [0; 8] };
         AccountWithMetadata {
-            account: Account::default(),
+            account: Account {
+                program_owner,
+                ..Account::default()
+            },
             is_authorized: signed,
             account_id: AccountId::new([id_byte; 32]),
         }
@@ -294,7 +403,7 @@ mod tests {
 
     #[test]
     fn perform_transfer_at_preserves_neighbors_and_installs_new_admin() {
-        let mut config_account = sentinel_acct(72);
+        let mut config_account = sentinel_acct(104);
         let old_admin = acct(1, true);
         let new_admin = acct(2, true);
         AdminConfig::bootstrap_at(&mut config_account, 8, AdminCandidate::Signer, &old_admin)
@@ -311,7 +420,7 @@ mod tests {
 
         let data = &config_account.account.data;
         assert!(data[..8].iter().all(|b| *b == 0xAA), "prefix trampled");
-        assert!(data[40..].iter().all(|b| *b == 0xAA), "suffix trampled");
+        assert!(data[72..].iter().all(|b| *b == 0xAA), "suffix trampled");
         let cfg = AdminConfig::from_account_at(&config_account, 8).unwrap();
         assert!(cfg.assert_admin(&new_admin).is_ok());
         assert_eq!(cfg.assert_admin(&old_admin), Err(AdminError::NotAdmin));
@@ -319,7 +428,7 @@ mod tests {
 
     #[test]
     fn perform_renounce_at_preserves_neighbors_and_is_terminal() {
-        let mut config_account = sentinel_acct(72);
+        let mut config_account = sentinel_acct(104);
         let admin = acct(1, true);
         AdminConfig::bootstrap_at(&mut config_account, 8, AdminCandidate::Signer, &admin)
             .expect("bootstrap must succeed");
@@ -329,7 +438,7 @@ mod tests {
 
         let data = &config_account.account.data;
         assert!(data[..8].iter().all(|b| *b == 0xAA), "prefix trampled");
-        assert!(data[40..].iter().all(|b| *b == 0xAA), "suffix trampled");
+        assert!(data[72..].iter().all(|b| *b == 0xAA), "suffix trampled");
         let cfg = AdminConfig::from_account_at(&config_account, 8).unwrap();
         assert_eq!(cfg.assert_admin(&admin), Err(AdminError::Renounced));
     }
@@ -354,13 +463,13 @@ mod tests {
 
     #[test]
     fn bootstrap_at_splices_at_offset_preserving_neighbors() {
-        let mut config_account = sentinel_acct(72);
+        let mut config_account = sentinel_acct(104);
         let signer = acct(1, true);
         AdminConfig::bootstrap_at(&mut config_account, 8, AdminCandidate::Signer, &signer)
             .expect("bootstrap at offset 8 must succeed");
         let data = &config_account.account.data;
         assert!(data[..8].iter().all(|b| *b == 0xAA), "prefix trampled");
-        assert!(data[40..].iter().all(|b| *b == 0xAA), "suffix trampled");
+        assert!(data[72..].iter().all(|b| *b == 0xAA), "suffix trampled");
         let cfg = AdminConfig::from_account_at(&config_account, 8).unwrap();
         assert!(cfg.assert_admin(&signer).is_ok());
     }
@@ -605,5 +714,136 @@ mod tests {
             AdminConfig::from_account(&account),
             Err(AdminError::NotInitialized)
         )
+    }
+
+    #[test]
+    fn nominate_then_accept_moves_the_admin() {
+        let admin = acct(1, true);
+        let nominee = acct(2, true);
+        let mut cfg = AdminConfig::initialize(admin.account_id).unwrap();
+        cfg.nominate(&admin, nominee.account_id).unwrap();
+        assert!(cfg.assert_admin(&admin).is_ok(), "nominating moves nothing");
+        assert_eq!(cfg.nominee(), Some(nominee.account_id));
+
+        cfg.accept(&nominee).unwrap();
+        assert!(cfg.assert_admin(&nominee).is_ok());
+        assert_eq!(cfg.assert_admin(&admin), Err(AdminError::NotAdmin));
+        assert_eq!(cfg.nominee(), None);
+    }
+
+    #[test]
+    fn only_the_admin_nominates() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        assert_eq!(
+            cfg.nominate(&acct(3, true), AccountId::new([2; 32])),
+            Err(AdminError::NotAdmin)
+        );
+    }
+
+    #[test]
+    fn accept_by_someone_else_is_refused() {
+        let admin = acct(1, true);
+        let mut cfg = AdminConfig::initialize(admin.account_id).unwrap();
+        cfg.nominate(&admin, AccountId::new([2; 32])).unwrap();
+        assert_eq!(cfg.accept(&acct(3, true)), Err(AdminError::NotNominee));
+    }
+
+    #[test]
+    fn accept_without_a_nomination_is_refused() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        assert_eq!(cfg.accept(&acct(2, true)), Err(AdminError::NoNomination));
+    }
+
+    #[test]
+    fn renounce_clears_the_nomination_and_stays_terminal() {
+        let admin = acct(1, true);
+        let nominee = acct(2, true);
+        let mut cfg = AdminConfig::initialize(admin.account_id).unwrap();
+        cfg.nominate(&admin, nominee.account_id).unwrap();
+        cfg.renounce(&admin).unwrap();
+        assert_eq!(cfg.accept(&nominee), Err(AdminError::Renounced));
+        assert_eq!(cfg.nominee(), None);
+    }
+
+    #[test]
+    fn a_transfer_clears_a_stale_nomination() {
+        let admin = acct(1, true);
+        let stale = acct(2, true);
+        let next = acct(3, true);
+        let mut cfg = AdminConfig::initialize(admin.account_id).unwrap();
+        cfg.nominate(&admin, stale.account_id).unwrap();
+        cfg.transfer(&admin, AdminCandidate::Signer, &next).unwrap();
+        assert_eq!(cfg.accept(&stale), Err(AdminError::NoNomination));
+        assert!(cfg.assert_admin(&next).is_ok());
+    }
+
+    #[test]
+    fn perform_nominate_and_accept_at_preserve_neighbors() {
+        let mut config_account = sentinel_acct(104);
+        let admin = acct(1, true);
+        let nominee = acct(2, true);
+        AdminConfig::bootstrap_at(&mut config_account, 8, AdminCandidate::Signer, &admin).unwrap();
+        AdminConfig::perform_nominate_at(&mut config_account, 8, &admin, nominee.account_id)
+            .unwrap();
+        AdminConfig::perform_accept_at(&mut config_account, 8, &nominee).unwrap();
+
+        let data = &config_account.account.data;
+        assert!(data[..8].iter().all(|b| *b == 0xAA), "prefix trampled");
+        assert!(data[72..].iter().all(|b| *b == 0xAA), "suffix trampled");
+        let cfg = AdminConfig::from_account_at(&config_account, 8).unwrap();
+        assert!(cfg.assert_admin(&nominee).is_ok());
+    }
+
+    #[test]
+    fn fixed_size_matches_the_encoding() {
+        let mut cfg = AdminConfig::initialize(AccountId::new([1; 32])).unwrap();
+        cfg.nominate(&acct(1, true), AccountId::new([2; 32]))
+            .unwrap();
+        assert_eq!(
+            cfg.encode().unwrap().len(),
+            <AdminConfig as spel_framework::FixedBorshSize>::SIZE
+        );
+    }
+
+    const OURS: ProgramId = [7; 8];
+
+    fn owned_config(program_owner: ProgramId) -> AccountWithMetadata {
+        let mut config_account = acct(9, false);
+        AdminConfig::bootstrap(&mut config_account, AdminCandidate::Signer, &acct(1, true))
+            .unwrap();
+        config_account.account.program_owner = program_owner;
+        config_account
+    }
+
+    #[test]
+    fn from_owned_account_reads_a_config_the_program_owns() {
+        let cfg = AdminConfig::from_owned_account(&owned_config(OURS), OURS).unwrap();
+        assert!(cfg.assert_admin(&acct(1, true)).is_ok());
+    }
+
+    #[test]
+    fn from_owned_account_refuses_a_config_another_program_owns() {
+        assert_eq!(
+            AdminConfig::from_owned_account(&owned_config([8; 8]), OURS),
+            Err(AdminError::ConfigNotOwned)
+        );
+    }
+
+    #[test]
+    fn from_owned_account_at_checks_the_owner_before_the_window() {
+        let mut config_account = sentinel_acct(104);
+        AdminConfig::bootstrap_at(
+            &mut config_account,
+            8,
+            AdminCandidate::Signer,
+            &acct(1, true),
+        )
+        .unwrap();
+        config_account.account.program_owner = OURS;
+        assert!(AdminConfig::from_owned_account_at(&config_account, 8, OURS).is_ok());
+        assert_eq!(
+            AdminConfig::from_owned_account_at(&config_account, 8, [8; 8]),
+            Err(AdminError::ConfigNotOwned)
+        );
     }
 }

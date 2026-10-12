@@ -12,8 +12,10 @@ pub use spel_framework::instruction;
 
 mod config;
 mod errors;
+mod genesis;
 pub use config::*;
 pub use errors::*;
+pub use genesis::*;
 
 extern crate self as admin_authority;
 
@@ -27,15 +29,17 @@ extern crate self as admin_authority;
 /// See ADR-0005. To hand the role to an external keyholder or PDA, call
 /// `admin_transfer` after initializing.
 ///
-/// The Config PDA does not exist until this instruction lands, so any caller
-/// can win the race during the initialization window. LEZ deployment
-/// transactions carry no instructions, so deploy and initialize cannot be
-/// bundled today; send `admin_initialize` immediately after deployment.
+/// A build compiled with `SPEL_ADMIN_GENESIS` (64 hex characters) lets only
+/// that key initialize (ADR-0012). Without it, any caller can win the race
+/// during the initialization window: LEZ deployment transactions carry no
+/// instructions, so deploy and initialize cannot be bundled, and
+/// `admin_initialize` should be sent immediately after deployment.
 #[instruction]
 pub fn admin_initialize(
     #[account(init, pda = literal("admin_config"))] mut config: AccountWithMetadata,
     #[account(signer)] caller: AccountWithMetadata,
 ) -> SpelResult {
+    require_genesis(&caller)?;
     AdminConfig::bootstrap(&mut config, AdminCandidate::Signer, &caller)?;
     Ok(SpelOutput::execute(
         vec![
@@ -86,6 +90,45 @@ pub fn admin_renounce(
     offset: usize,
 ) -> SpelResult {
     AdminConfig::perform_renounce_at(&mut admin_config, offset, &caller)?;
+    Ok(SpelOutput::execute(
+        vec![admin_config.account, caller.account],
+        vec![],
+    ))
+}
+
+/// Names `new_admin` to take over as admin. Only the current admin can
+/// call. Nothing moves until the nominee signs `admin_accept`, so a
+/// mistyped id costs a second nomination. A later nomination replaces an
+/// earlier one, and the all-zero id cancels.
+#[instruction]
+pub fn admin_nominate(
+    #[account(mut, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
+    #[account(signer)] caller: AccountWithMetadata,
+    new_admin: [u8; 32],
+    offset: usize,
+) -> SpelResult {
+    AdminConfig::perform_nominate_at(
+        &mut admin_config,
+        offset,
+        &caller,
+        AccountId::new(new_admin),
+    )?;
+    Ok(SpelOutput::execute(
+        vec![admin_config.account, caller.account],
+        vec![],
+    ))
+}
+
+/// Makes the nominee the admin. The nominee signs for itself. A PDA
+/// nominee signs through a chained call from its owning program that
+/// passes the PDA's seeds.
+#[instruction]
+pub fn admin_accept(
+    #[account(mut, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
+    #[account(signer)] caller: AccountWithMetadata,
+    offset: usize,
+) -> SpelResult {
+    AdminConfig::perform_accept_at(&mut admin_config, offset, &caller)?;
     Ok(SpelOutput::execute(
         vec![admin_config.account, caller.account],
         vec![],

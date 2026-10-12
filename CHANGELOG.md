@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `admin_nominate` and `admin_accept` instructions.
+- `SPEL_ADMIN_GENESIS` build variable: only that key can run `admin_initialize`. `require_genesis` and `genesis_admin`.
+- `AdminConfig::from_owned_account` and `from_owned_account_at`.
+- `AdminConfig::nominate`, `accept`, `nominee`, `perform_nominate`, `perform_nominate_at`, `perform_accept` and `perform_accept_at`.
+- `AdminError::code`, and the variants `NoNomination`, `NotNominee`, `UnownedSigner`, `NotGenesisAdmin` and `ConfigNotOwned`.
+
+### Changed
+
+- Breaking: `AdminConfig` encodes as 64 bytes, admin at `0..32`, nominee at `32..64`. The embedded window is 64 bytes.
+- Embedded sample: admin at `32..96`.
+- `admin_transfer` and `admin_renounce` clear the nominee.
+- Breaking: `admin_initialize`, `admin_transfer` and `admin_accept` refuse a key no program owns.
+- Breaking: `AdminError` maps to `SpelError::Custom` with codes 101 to 116, no longer `SpelError::Unauthorized`.
+- Pin `spel-authority` to tag `v0.2.0` and `spel-framework` to tag `v0.7.0`.
+
 ## [0.1.4] - 2026-09-17
 
 ### Changed

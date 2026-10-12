@@ -33,11 +33,16 @@ mod admin_authority_sample {
 #[cfg(test)]
 mod test {
     use super::*;
-    use admin_authority::{AdminCandidate, AdminConfig};
+    use admin_authority::{AdminCandidate, AdminConfig, AdminError};
 
+    // A signing key is owned by some program, as `wallet auth-transfer init` leaves it.
     fn acct(id_byte: u8, signed: bool) -> AccountWithMetadata {
+        let program_owner = if signed { [5; 8] } else { [0; 8] };
         AccountWithMetadata {
-            account: Account::default(),
+            account: Account {
+                program_owner,
+                ..Account::default()
+            },
             is_authorized: signed,
             account_id: AccountId::new([id_byte; 32]),
         }
@@ -68,7 +73,10 @@ mod test {
 
         let err = admin_authority_sample::update_value(admin_config, caller, config, 42)
             .expect_err("signer is not the current admin");
-        assert!(matches!(err, SpelError::Unauthorized { .. }));
+        assert_eq!(
+            err.to_string(),
+            SpelError::from(AdminError::NotAdmin).to_string()
+        );
     }
 
     #[test]
@@ -80,7 +88,10 @@ mod test {
 
         let err = admin_authority_sample::update_value(admin_config, caller, config, 42)
             .expect_err("admin authority not initialized");
-        assert!(matches!(err, SpelError::Unauthorized { .. }));
+        assert_eq!(
+            err.to_string(),
+            SpelError::from(AdminError::NotInitialized).to_string()
+        );
     }
 
     #[test]
@@ -94,7 +105,10 @@ mod test {
 
         let err = admin_authority_sample::update_value(admin_config, caller, config, 42)
             .expect_err("admin authority renounced");
-        assert!(matches!(err, SpelError::Unauthorized { .. }));
+        assert_eq!(
+            err.to_string(),
+            SpelError::from(AdminError::Renounced).to_string()
+        );
     }
 
     // Proposal scenario: re-initialization rejection. The framework's

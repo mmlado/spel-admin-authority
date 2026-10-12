@@ -6,9 +6,9 @@
 use authority::AuthorityError;
 use spel_framework::prelude::*;
 
-/// Errors returned by `admin-authority` library methods. Mapped to
-/// `SpelError::Unauthorized` at the SPEL boundary so the lib stays
-/// independent of the framework's error surface.
+/// Errors returned by `admin-authority` library methods. Each maps to
+/// `SpelError::Custom` with a stable code from [`AdminError::code`], which
+/// LEZ reports as program error `6000 + code`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AdminError {
     /// Config PDA data is empty; `admin_initialize` has not been called.
@@ -38,6 +38,43 @@ pub enum AdminError {
     /// the account's data. Layout error: the declared offset and the
     /// account's actual size disagree.
     SlotOutOfBounds,
+    /// The admin key, or a `Signer` transfer target, is owned by no
+    /// program. LEZ would strand it after one transaction. Run
+    /// `wallet auth-transfer init` on the key first.
+    UnownedSigner,
+    /// `admin_accept` was called with no nominee in the config.
+    NoNomination,
+    /// The signer of `admin_accept` is not the nominee.
+    NotNominee,
+    /// The build carries a genesis key (`SPEL_ADMIN_GENESIS`) and the
+    /// caller of `admin_initialize` is not it.
+    NotGenesisAdmin,
+    /// The config account is not owned by the program reading it.
+    ConfigNotOwned,
+}
+
+impl AdminError {
+    /// The stable code of this error, in the 1xx block.
+    pub const fn code(&self) -> u32 {
+        match self {
+            AdminError::NotInitialized => 101,
+            AdminError::Renounced => 102,
+            AdminError::NotAdmin => 103,
+            AdminError::MissingSignature => 104,
+            AdminError::InvalidCandidate => 105,
+            AdminError::UndeployedPda => 106,
+            AdminError::CandidateMismatch => 107,
+            AdminError::EncodingFailed => 108,
+            AdminError::DecodingFailed => 109,
+            AdminError::AccountDataTooLarge => 110,
+            AdminError::SlotOutOfBounds => 111,
+            AdminError::UnownedSigner => 112,
+            AdminError::NoNomination => 113,
+            AdminError::NotNominee => 114,
+            AdminError::NotGenesisAdmin => 115,
+            AdminError::ConfigNotOwned => 116,
+        }
+    }
 }
 
 impl core::fmt::Display for AdminError {
@@ -54,15 +91,18 @@ impl core::fmt::Display for AdminError {
             AdminError::DecodingFailed => write!(f, "AdminConfig decoding failed"),
             AdminError::AccountDataTooLarge => write!(f, "AdminConfig too large for account data"),
             AdminError::SlotOutOfBounds => write!(f, "embedded slot window out of bounds"),
+            AdminError::UnownedSigner => write!(f, "admin key is owned by no program"),
+            AdminError::NoNomination => write!(f, "no admin nominee to accept"),
+            AdminError::NotNominee => write!(f, "signer is not the admin nominee"),
+            AdminError::NotGenesisAdmin => write!(f, "signer is not this build's genesis admin"),
+            AdminError::ConfigNotOwned => write!(f, "admin config is not owned by this program"),
         }
     }
 }
 
 impl From<AdminError> for SpelError {
     fn from(e: AdminError) -> Self {
-        SpelError::Unauthorized {
-            message: e.to_string(),
-        }
+        SpelError::custom(e.code(), e.to_string())
     }
 }
 
@@ -76,6 +116,9 @@ impl From<AuthorityError> for AdminError {
             AuthorityError::Renounced => AdminError::Renounced,
             AuthorityError::MissingSignature => AdminError::MissingSignature,
             AuthorityError::SlotOutOfBounds => AdminError::SlotOutOfBounds,
+            AuthorityError::UnownedSigner => AdminError::UnownedSigner,
+            AuthorityError::NoNomination => AdminError::NoNomination,
+            AuthorityError::NotNominee => AdminError::NotNominee,
         }
     }
 }
@@ -128,25 +171,43 @@ mod test {
         );
     }
 
+    // Codes are API: clients branch on them, so a renumbering must fail here.
     #[test]
-    fn admin_error_maps_to_unauthorized() {
-        let spel: SpelError = AdminError::NotAdmin.into();
-        match spel {
-            SpelError::Unauthorized { message } => {
-                assert_eq!(message, "signer is not the current admin");
-            }
-            other => panic!("expected Unauthorized, got {other:?}"),
+    fn codes_are_stable() {
+        use AdminError::*;
+        let pinned = [
+            (NotInitialized, 101),
+            (Renounced, 102),
+            (NotAdmin, 103),
+            (MissingSignature, 104),
+            (InvalidCandidate, 105),
+            (UndeployedPda, 106),
+            (CandidateMismatch, 107),
+            (EncodingFailed, 108),
+            (DecodingFailed, 109),
+            (AccountDataTooLarge, 110),
+            (SlotOutOfBounds, 111),
+            (UnownedSigner, 112),
+            (NoNomination, 113),
+            (NotNominee, 114),
+            (NotGenesisAdmin, 115),
+            (ConfigNotOwned, 116),
+        ];
+        for (err, code) in pinned {
+            assert_eq!(err.code(), code, "{err:?}");
         }
     }
 
     #[test]
-    fn admin_error_renounced_maps_to_unauthorized_with_message() {
-        let spel: SpelError = AdminError::Renounced.into();
+    fn spel_error_carries_the_code_and_the_message() {
+        let spel: SpelError = AdminError::NotAdmin.into();
+        assert_eq!(spel.error_code(), 6103);
         match spel {
-            SpelError::Unauthorized { message } => {
-                assert_eq!(message, "admin authority renounced");
+            SpelError::Custom { code, message } => {
+                assert_eq!(code, 103);
+                assert_eq!(message, "signer is not the current admin");
             }
-            other => panic!("expected Unauthorized, got {other:?}"),
+            other => panic!("expected Custom, got {other:?}"),
         }
     }
 }

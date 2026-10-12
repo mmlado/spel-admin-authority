@@ -60,6 +60,10 @@ fn idl_contains_user_instr_and_admin_trio() {
         names.contains(&"admin_renounce"),
         "missing admin_renounce from path-dep scan"
     );
+    assert!(
+        names.contains(&"admin_nominate") && names.contains(&"admin_accept"),
+        "missing the two-step handover from path-dep scan"
+    );
 
     let update_value = idl
         .instructions

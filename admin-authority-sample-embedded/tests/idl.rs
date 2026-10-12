@@ -38,7 +38,9 @@ fn idl_shows_embedded_surface_and_no_initializer_or_offset() {
             "update_value",
             "poke",
             "admin_transfer",
-            "admin_renounce"
+            "admin_renounce",
+            "admin_nominate",
+            "admin_accept"
         ],
         "embedded surface drifted"
     );
