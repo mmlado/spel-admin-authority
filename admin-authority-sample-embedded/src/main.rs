@@ -3,7 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use spel_framework::prelude::*;
 
 /// The admin slot lives inside this account at byte offset 32:
-/// value 0..8, padding 8..32, admin 32..64. The non-zero offset is
+/// value 0..8, padding 8..32, admin 32..96. The non-zero offset is
 /// deliberate, it exercises the splice.
 #[account_type]
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, Default)]
@@ -114,12 +114,17 @@ mod tests {
         }
         .write_to(&mut config_account)
         .expect("initial write");
-        AdminConfig::bootstrap_at(&mut config_account, 32, AdminCandidate::Signer, &old_admin)
-            .expect("bootstrap");
+        AdminConfig::bootstrap_at(
+            &mut config_account,
+            ProgConfig::ADMIN_SLOT_OFFSET,
+            AdminCandidate::Signer,
+            &old_admin,
+        )
+        .expect("bootstrap");
 
         AdminConfig::perform_transfer_at(
             &mut config_account,
-            32,
+            ProgConfig::ADMIN_SLOT_OFFSET,
             &old_admin,
             AdminCandidate::Signer,
             &new_admin,
@@ -177,7 +182,8 @@ mod tests {
         .write_to(&mut config_account)
         .expect("initial write");
 
-        let cfg = AdminConfig::from_account_at(&config_account, 32).expect("decode");
+        let cfg = AdminConfig::from_account_at(&config_account, ProgConfig::ADMIN_SLOT_OFFSET)
+            .expect("decode");
         assert!(
             cfg.assert_admin(&anyone).is_err(),
             "born renounced slot must reject"

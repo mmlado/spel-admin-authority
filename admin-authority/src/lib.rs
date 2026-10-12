@@ -74,6 +74,45 @@ pub fn admin_transfer(
     ))
 }
 
+/// Names `new_admin` to take over as admin. Only the current admin can
+/// call. Nothing moves until the nominee signs `admin_accept`, so a
+/// mistyped id costs a second nomination. A later nomination replaces an
+/// earlier one, and the all-zero id cancels.
+#[instruction]
+pub fn admin_nominate(
+    #[account(mut, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
+    #[account(signer)] caller: AccountWithMetadata,
+    new_admin: [u8; 32],
+    offset: usize,
+) -> SpelResult {
+    AdminConfig::perform_nominate_at(
+        &mut admin_config,
+        offset,
+        &caller,
+        AccountId::new(new_admin),
+    )?;
+    Ok(SpelOutput::execute(
+        vec![admin_config.account, caller.account],
+        vec![],
+    ))
+}
+
+/// Makes the nominee the admin. The nominee signs for itself. A PDA
+/// nominee signs through a chained call from its owning program that
+/// passes the PDA's seeds.
+#[instruction]
+pub fn admin_accept(
+    #[account(mut, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
+    #[account(signer)] caller: AccountWithMetadata,
+    offset: usize,
+) -> SpelResult {
+    AdminConfig::perform_accept_at(&mut admin_config, offset, &caller)?;
+    Ok(SpelOutput::execute(
+        vec![admin_config.account, caller.account],
+        vec![],
+    ))
+}
+
 /// Permanently zeros the admin in the Config PDA.
 ///
 /// Only the current admin can call. Writes `AccountId::default()` to the

@@ -2,7 +2,8 @@
 //! claims and nonce bumps applied the way a sequencer applies them.
 
 use admin_authority::{
-    AdminCandidate, AdminError, admin_initialize, admin_renounce, admin_transfer,
+    AdminCandidate, AdminError, admin_accept, admin_initialize, admin_nominate, admin_renounce,
+    admin_transfer,
 };
 use nssa_core::account::{Account, AccountId, AccountWithMetadata};
 use nssa_core::program::{
@@ -170,4 +171,136 @@ fn an_owned_transfer_target_keeps_working_as_admin() {
         0,
     ));
     land(pre, renounce).expect("LEZ accepts the new admin's next transaction");
+}
+
+const HOLDER_PROGRAM: ProgramId = [9; 8];
+
+/// Config with owned key `1` as admin. Returns `[config, admin]`.
+fn initialised() -> (AccountWithMetadata, AccountWithMetadata) {
+    let admin = owned(1);
+    let after = land(
+        vec![config(), admin.clone()],
+        posts(admin_initialize(config(), admin)),
+    )
+    .unwrap();
+    (after[0].clone(), signing(after[1].clone()))
+}
+
+fn nominate(
+    config: &AccountWithMetadata,
+    admin: &AccountWithMetadata,
+    nominee: &AccountWithMetadata,
+) -> AccountWithMetadata {
+    let pre = vec![config.clone(), admin.clone()];
+    let after = land(
+        pre,
+        posts(admin_nominate(
+            config.clone(),
+            admin.clone(),
+            *nominee.account_id.value(),
+            0,
+        )),
+    )
+    .unwrap();
+    after[0].clone()
+}
+
+#[test]
+fn a_nominee_accepts_and_then_administers() {
+    let (config, admin) = initialised();
+    let nominee = owned(2);
+    let config = nominate(&config, &admin, &nominee);
+
+    let accepted = land(
+        vec![config.clone(), nominee.clone()],
+        posts(admin_accept(config, nominee, 0)),
+    )
+    .unwrap();
+
+    let renounce = posts(admin_renounce(
+        accepted[0].clone(),
+        signing(accepted[1].clone()),
+        0,
+    ));
+    land(
+        vec![accepted[0].clone(), signing(accepted[1].clone())],
+        renounce,
+    )
+    .expect("LEZ accepts the new admin's next transaction");
+}
+
+#[test]
+fn a_never_used_nominee_is_refused_at_accept() {
+    let (config, admin) = initialised();
+    let nominee = never_used(2);
+    let config = nominate(&config, &admin, &nominee);
+    refused_as_unowned(admin_accept(config, nominee, 0));
+}
+
+#[test]
+fn a_stale_nominee_cannot_accept_after_a_transfer() {
+    let (config, admin) = initialised();
+    let stale = owned(2);
+    let config = nominate(&config, &admin, &stale);
+
+    let next = owned(3);
+    let pre = vec![config.clone(), admin.clone(), next.clone()];
+    let after = land(
+        pre,
+        posts(admin_transfer(
+            config,
+            admin,
+            next,
+            AdminCandidate::Signer,
+            0,
+        )),
+    )
+    .unwrap();
+
+    let expected = SpelError::from(AdminError::NoNomination);
+    match admin_accept(after[0].clone(), stale, 0) {
+        Err(err) => assert_eq!(err.to_string(), expected.to_string()),
+        Ok(_) => panic!("a stale nominee took the admin after a transfer"),
+    }
+}
+
+#[test]
+fn nothing_can_accept_after_renounce() {
+    let (config, admin) = initialised();
+    let nominee = owned(2);
+    let config = nominate(&config, &admin, &nominee);
+    let after = land(
+        vec![config.clone(), admin.clone()],
+        posts(admin_renounce(config, admin, 0)),
+    )
+    .unwrap();
+    assert!(admin_accept(after[0].clone(), nominee, 0).is_err());
+}
+
+#[test]
+fn a_pda_nominee_accepts_through_its_owning_program() {
+    // A chained call with the PDA's seeds reaches the library as a signed,
+    // program-owned account.
+    let (config, admin) = initialised();
+    let pda = AccountWithMetadata {
+        account: Account {
+            program_owner: HOLDER_PROGRAM,
+            data: vec![1].try_into().unwrap(),
+            ..Account::default()
+        },
+        is_authorized: true,
+        account_id: AccountId::for_public_pda(
+            &HOLDER_PROGRAM,
+            &PdaSeed::new(seed_from_str("vault")),
+        ),
+    };
+    let config = nominate(&config, &admin, &pda);
+    let accepted = land(
+        vec![config.clone(), pda.clone()],
+        posts(admin_accept(config, pda.clone(), 0)),
+    )
+    .unwrap();
+
+    let renounce = posts(admin_renounce(accepted[0].clone(), pda.clone(), 0));
+    land(vec![accepted[0].clone(), pda], renounce).expect("the PDA administers");
 }

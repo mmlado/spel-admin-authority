@@ -42,6 +42,10 @@ pub enum AdminError {
     /// program. LEZ would strand it after one transaction. Run
     /// `wallet auth-transfer init` on the key first.
     UnownedSigner,
+    /// `admin_accept` was called with no nominee in the config.
+    NoNomination,
+    /// The signer of `admin_accept` is not the nominee.
+    NotNominee,
 }
 
 impl core::fmt::Display for AdminError {
@@ -59,6 +63,8 @@ impl core::fmt::Display for AdminError {
             AdminError::AccountDataTooLarge => write!(f, "AdminConfig too large for account data"),
             AdminError::SlotOutOfBounds => write!(f, "embedded slot window out of bounds"),
             AdminError::UnownedSigner => write!(f, "admin key is owned by no program"),
+            AdminError::NoNomination => write!(f, "no admin nominee to accept"),
+            AdminError::NotNominee => write!(f, "signer is not the admin nominee"),
         }
     }
 }
@@ -82,6 +88,8 @@ impl From<AuthorityError> for AdminError {
             AuthorityError::MissingSignature => AdminError::MissingSignature,
             AuthorityError::SlotOutOfBounds => AdminError::SlotOutOfBounds,
             AuthorityError::UnownedSigner => AdminError::UnownedSigner,
+            AuthorityError::NoNomination => AdminError::NoNomination,
+            AuthorityError::NotNominee => AdminError::NotNominee,
         }
     }
 }
