@@ -113,4 +113,47 @@ Signers:
 ================
 Dry run complete — not submitted.
 
+── admin-nominate --caller 1111111111111111111111111111111111111111111111111111111111111111 --new-admin 2222222222222222222222222222222222222222222222222222222222222222 ──────────────────────────────
+📋 Instruction: admin_nominate
+
+=== Dry Run ===
+Program ID: abababababababababababababababababababababababababababababababab
+Instruction: admin_nominate
+
+Accounts:
+  PDA admin_config → 23czDuwgR21xjdqpsf9wGRpZ86LaiAvZ4ZbvDCxz7B96 [writable]
+    seeds: [program_id, "admin_config"]
+  caller → 0x1111111111111111111111111111111111111111111111111111111111111111 [signer]
+
+Arguments:
+  --new-admin """""""""""""""""""""""""""""""""" (hex: 2222222222222222222222222222222222222222222222222222222222222222)
+
+Instruction data: 0x040000002200000022000000220000002200000022000000220000002200000022000000220000002200000022000000220000002200000022000000220000002200000022000000220000002200000022000000220000002200000022000000220000002200000022000000220000002200000022000000220000002200000022000000
+
+Signers:
+  caller: nonce=(unknown)
+================
+Dry run complete — not submitted.
+
+── admin-accept --caller 2222222222222222222222222222222222222222222222222222222222222222 ──────────────────────────────
+📋 Instruction: admin_accept
+
+=== Dry Run ===
+Program ID: abababababababababababababababababababababababababababababababab
+Instruction: admin_accept
+
+Accounts:
+  PDA admin_config → 23czDuwgR21xjdqpsf9wGRpZ86LaiAvZ4ZbvDCxz7B96 [writable]
+    seeds: [program_id, "admin_config"]
+  caller → 0x2222222222222222222222222222222222222222222222222222222222222222 [signer]
+
+Arguments:
+
+Instruction data: 0x05000000
+
+Signers:
+  caller: nonce=(unknown)
+================
+Dry run complete — not submitted.
+
 Done.

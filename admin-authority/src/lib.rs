@@ -78,6 +78,24 @@ pub fn admin_transfer(
     ))
 }
 
+/// Permanently zeros the admin in the Config PDA.
+///
+/// Only the current admin can call. Writes `AccountId::default()` to the
+/// Config PDA, blocking all future admin-gated instructions. Terminal,
+/// there is no recovery path by design.
+#[instruction]
+pub fn admin_renounce(
+    #[account(mut, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
+    #[account(signer)] caller: AccountWithMetadata,
+    offset: usize,
+) -> SpelResult {
+    AdminConfig::perform_renounce_at(&mut admin_config, offset, &caller)?;
+    Ok(SpelOutput::execute(
+        vec![admin_config.account, caller.account],
+        vec![],
+    ))
+}
+
 /// Names `new_admin` to take over as admin. Only the current admin can
 /// call. Nothing moves until the nominee signs `admin_accept`, so a
 /// mistyped id costs a second nomination. A later nomination replaces an
@@ -111,24 +129,6 @@ pub fn admin_accept(
     offset: usize,
 ) -> SpelResult {
     AdminConfig::perform_accept_at(&mut admin_config, offset, &caller)?;
-    Ok(SpelOutput::execute(
-        vec![admin_config.account, caller.account],
-        vec![],
-    ))
-}
-
-/// Permanently zeros the admin in the Config PDA.
-///
-/// Only the current admin can call. Writes `AccountId::default()` to the
-/// Config PDA, blocking all future admin-gated instructions. Terminal,
-/// there is no recovery path by design.
-#[instruction]
-pub fn admin_renounce(
-    #[account(mut, pda = literal("admin_config"))] mut admin_config: AccountWithMetadata,
-    #[account(signer)] caller: AccountWithMetadata,
-    offset: usize,
-) -> SpelResult {
-    AdminConfig::perform_renounce_at(&mut admin_config, offset, &caller)?;
     Ok(SpelOutput::execute(
         vec![admin_config.account, caller.account],
         vec![],

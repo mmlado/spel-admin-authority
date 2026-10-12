@@ -46,6 +46,8 @@ run poke --caller "$CALLER"
 
 run admin-transfer --caller "$CALLER" --new-account "$NEW_ACCOUNT" --candidate Signer
 run admin-renounce --caller "$CALLER"
+run admin-nominate --caller "$CALLER" --new-admin "$NEW_ACCOUNT"
+run admin-accept --caller "$NEW_ACCOUNT"
 
 echo
 echo "Done."
