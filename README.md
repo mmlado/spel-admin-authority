@@ -131,7 +131,7 @@ A local checkout referenced by `path` works the same way. `admin-authority-macro
 
 1. **Annotate the module** with `#[admin_authority]` after `#[lez_program]`. The admin instructions appear in the IDL automatically.
 2. **Call `admin_initialize`** immediately after deployment; the caller becomes admin. Build with a [genesis key](#genesis-key) and only that key can. Without one, anything between deployment and the first `admin_initialize` is the [initialization window](docs/authority-lifecycle.md#initialization-window-risk); whoever calls first becomes admin. Want a different admin? Initialize, then hand over.
-3. **Gate instructions** by adding `#[require_admin]`. Declaring the `admin_config` and `caller` params is optional, missing ones are injected. Custom names go through the gate's args: `#[require_admin(admin_config = my_cfg, caller = owner)]`.
+3. **Gate instructions** by adding `#[require_admin]`. Declaring the `admin_config` and `caller` params is optional, missing ones are injected. Custom names go through the gate's args: `#[require_admin(admin_config = my_cfg, caller = owner)]`. A declared config account needs its own `pda` constraint, see [Security notes](#security-notes).
 4. **Hand over or renounce** via the injected instructions. `admin_transfer` takes an `AdminCandidate` (signer or PDA) paired with the corresponding `new_account`, and a transfer to a signer needs the new admin's signature on the same transaction, see [Transferring to a keyholder](#transferring-to-a-keyholder). `admin_nominate` and `admin_accept` do the same handover in two transactions, see [Two-step handover](#two-step-handover). `admin_renounce` ends the role.
 
 The [authority lifecycle document](docs/authority-lifecycle.md) covers the state machine, validation rules at each transition, and the program-as-admin path through CPI.
@@ -160,11 +160,14 @@ spel submit handover.json
 
 Build with `SPEL_ADMIN_GENESIS` set to an account id as 64 hexadecimal characters, and only that account can run `admin_initialize`. Anyone else gets `AdminError::NotGenesisAdmin`. Without the variable the first caller becomes admin, as before. A malformed or all-zero value fails the build, and changing it rebuilds the library.
 
-```bash
-SPEL_ADMIN_GENESIS=<64 hex characters> cargo risczero build --manifest-path methods/guest/Cargo.toml
+`cargo risczero build` compiles in Docker, which does not see your shell's environment, so an exported `SPEL_ADMIN_GENESIS` is ignored there and the build has no gate. Set the key in Cargo's `[env]` table instead, in `.cargo/config.toml` in the directory you run the build from. That directory is the Docker build context, and a config file further down, next to the guest crate, is not read. A native build reads the same file.
+
+```toml
+[env]
+SPEL_ADMIN_GENESIS = "<64 hex characters>"
 ```
 
-The key is part of the program image, so a build with a different key has a different program id. In embedded mode there is no `admin_initialize`: call `admin_authority::require_genesis(&caller)?` in the account-creating instruction to apply the same check. See [ADR-0012](docs/adr/0012-genesis-key-from-the-build-environment.md).
+The key is part of the program image, so a build with a different key has a different program id. Compare it with the program id of a build without the key to confirm the key is in. In embedded mode there is no `admin_initialize`: call `admin_authority::require_genesis(&caller)?` in the account-creating instruction to apply the same check. See [ADR-0012](docs/adr/0012-genesis-key-from-the-build-environment.md).
 
 ## Errors
 
@@ -211,7 +214,7 @@ A PDA nominee accepts through its owning program: that program chained-calls `ad
 
 Measured from the committed dry-run captures ([docs/dry-run-output.txt](docs/dry-run-output.txt), [docs/dry-run-embedded-output.txt](docs/dry-run-embedded-output.txt)).
 
-Dedicated mode: the gate adds one account to a gated transaction, the `admin_config` PDA. That is 32 bytes of account id in the message plus the 32 byte config pre-state in the witness. The `caller` signer is shared with the application whenever it already requires one. Instruction data is unchanged, the check adds no arguments.
+Dedicated mode: the gate adds one account to a gated transaction, the `admin_config` PDA. That is 32 bytes of account id in the message plus the config's pre-state in the witness, which carries 64 bytes of data. The `caller` signer is shared with the application whenever it already requires one. Instruction data is unchanged, the check adds no arguments.
 
 Embedded mode: the gate adds no account when the gated instruction already carries the embedding account. The slot adds 64 bytes to that account's data instead. In the captures, `update_value` carries 3 accounts in dedicated mode and 2 in embedded mode.
 
@@ -220,7 +223,8 @@ The embedded shapes are also confirmed end to end against a local LEZ v0.2.0 sta
 ## Security notes
 
 - **Initialization window.** Without a [genesis key](#genesis-key), anyone can submit `admin_initialize` until it lands and become admin, so call it immediately after deployment. Bundling with the deployment is not possible on LEZ today (deployment transactions carry no instructions). In embedded mode the same race sits on the consumer's account-creating instruction.
-- **Reading the config yourself.** The gates read only config accounts the dispatcher has already pinned to the program as PDAs. Plain Rust that reads a config without such a constraint should use `AdminConfig::from_owned_account` or `from_owned_account_at`, which refuse an account another program owns (`ConfigNotOwned`).
+- **Declared config accounts need their `pda`.** The gate trusts the config account the instruction carries. An injected `admin_config` is PDA-verified. A declared one is pinned only by its own constraint: `pda = literal("admin_config")` in dedicated mode, the embedding account's `pda` in embedded mode. Without it a caller can pass an account that names them admin, and the gate passes.
+- **Reading the config yourself.** Plain Rust that reads a config the dispatcher has not pinned should use `AdminConfig::from_owned_account` or `from_owned_account_at`, which refuse an account another program owns (`ConfigNotOwned`). They check the owner, not the address, so a `pda` constraint is still the stronger pin.
 - **Renounce is terminal.** `admin_renounce` writes `AccountId::default()` and that is the end. No recovery path by design.
 - **PDA admins via CPI.** A program-owned PDA can be the admin. The owning program calls the gated instruction via a chained_call and declares its admin PDA in `caller-pda-seeds`; LEZ propagates `is_authorized` to the callee. See the lifecycle doc.
 - **Transfer history.** Not recorded on-chain. The current admin is always readable from the Config PDA; historical transfers require an off-chain indexer.
@@ -249,7 +253,7 @@ cargo expand -p admin-authority-sample
 
 Semantic versioning covers four surfaces: the public Rust API, the attribute names (`#[admin_authority]`, `#[admin_initialize]`, `#[admin_slot]`, `#[require_admin]`) with their argument grammar, the `[package.metadata.spel]` contract this crate declares, and `AdminConfig`'s 64-byte borsh encoding (the admin, then the nominee), an on-chain wire format. While the version is 0.x, a minor bump may change any of them, and each such change is called out in the changelog.
 
-The `spel-framework` dependency pins a fork revision for now. Version 1.0.0 lands when the extension mechanism reaches an upstream release ([logos-co/spel#257](https://github.com/logos-co/spel/pull/257)) and the pin moves to it.
+The `spel-framework` dependency pins the upstream `v0.7.0` tag. The crate stays at 0.x while SPEL does, since SPEL types are part of its public API.
 
 ## License
 
