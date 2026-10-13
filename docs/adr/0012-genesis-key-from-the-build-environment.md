@@ -21,4 +21,4 @@ The key applies to the dedicated `admin_initialize` only. In embedded mode the c
 ## Consequences
 
 - The key is part of the image, so builds with different keys have different program ids and different PDAs.
-- Cargo's `[env]` table in `.cargo/config.toml` sets the same variable from a repository.
+- `cargo risczero build` compiles in Docker and does not pass the shell's environment in, so there the key has to come from Cargo's `[env]` table, in a `.cargo/config.toml` at the root of the Docker build context. An exported variable is silently ignored and the build has no gate.

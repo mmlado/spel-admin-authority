@@ -845,5 +845,13 @@ mod tests {
             AdminConfig::from_owned_account_at(&config_account, 8, [8; 8]),
             Err(AdminError::ConfigNotOwned)
         );
+        assert_eq!(
+            AdminConfig::from_owned_account_at(&config_account, 64, OURS),
+            Err(AdminError::SlotOutOfBounds)
+        );
+        assert_eq!(
+            AdminConfig::from_owned_account_at(&config_account, 64, [8; 8]),
+            Err(AdminError::ConfigNotOwned)
+        );
     }
 }

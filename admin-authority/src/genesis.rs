@@ -92,6 +92,12 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "must be hexadecimal")]
+    fn a_non_hex_key_is_refused() {
+        genesis_from_hex(&"g".repeat(64));
+    }
+
+    #[test]
     #[should_panic(expected = "must not be all zeros")]
     fn the_all_zero_key_is_refused() {
         genesis_from_hex(&"0".repeat(64));
