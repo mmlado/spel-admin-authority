@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "admin-authority"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
  "admin-authority-macros",
  "borsh",
@@ -17,7 +17,7 @@ dependencies = [
 
 [[package]]
 name = "admin-authority-macros"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -26,7 +26,7 @@ dependencies = [
 
 [[package]]
 name = "admin-authority-sample"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
  "admin-authority",
  "borsh",
@@ -38,7 +38,7 @@ dependencies = [
 
 [[package]]
 name = "admin-authority-sample-embedded"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
  "admin-authority",
  "borsh",
@@ -51,7 +51,7 @@ dependencies = [
 
 [[package]]
 name = "admin-authority-sample-manual"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
  "admin-authority",
  "borsh",
