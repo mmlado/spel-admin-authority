@@ -196,7 +196,7 @@ impl AdminConfig {
 
     /// Serialises and writes this config into an account's data field.
     ///
-    /// Returns `AdminError:AccountDataTooLarge` if the encoded bytes exceed
+    /// Returns `AdminError::AccountDataTooLarge` if the encoded bytes exceed
     /// the account's max length.
     pub fn write_to(&self, account: &mut AccountWithMetadata) -> Result<(), AdminError> {
         let bytes = self.encode()?;
@@ -211,7 +211,7 @@ impl AdminConfig {
     ///
     /// # Errors
     ///
-    /// `AdminError:SlotOutOfBounds` when the window does not fit.
+    /// `AdminError::SlotOutOfBounds` when the window does not fit.
     pub fn write_to_at(
         &self,
         account: &mut AccountWithMetadata,
@@ -246,7 +246,7 @@ impl AdminConfig {
     ///
     /// # Errors
     ///
-    /// Candidate validation errors, plus `SlotOufOfBounds` when the
+    /// Candidate validation errors, plus `SlotOutOfBounds` when the
     /// account's data does not cover the window (write the full
     /// consumer struct before bootstrapping).
     pub fn bootstrap_at(

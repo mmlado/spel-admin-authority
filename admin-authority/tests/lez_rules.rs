@@ -84,6 +84,22 @@ fn refused_as_unowned(result: SpelResult) {
 }
 
 #[test]
+fn admin_initialize_applies_the_genesis_key() {
+    // CI runs this file again with SPEL_ADMIN_GENESIS set to 01 x 32.
+    let result = admin_initialize(config(), owned(2));
+    match admin_authority::genesis_admin() {
+        Some(_) => match result {
+            Err(err) => assert_eq!(
+                err.to_string(),
+                SpelError::from(AdminError::NotGenesisAdmin).to_string()
+            ),
+            Ok(_) => panic!("a key other than the genesis key became admin"),
+        },
+        None => assert!(result.is_ok()),
+    }
+}
+
+#[test]
 fn a_never_used_key_is_refused_as_the_first_admin() {
     refused_as_unowned(admin_initialize(config(), never_used(1)));
 }

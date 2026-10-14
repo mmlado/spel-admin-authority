@@ -141,12 +141,13 @@ pub fn admin_initialize(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// Target params are supplied as attribute arguments, defaulting to the
 /// conventional names:
-/// - `config` — the Config PDA account param (default `admin_config`)
-/// - `signer` — the signing caller param (default `caller`)
+/// - `admin_config`: the Config PDA account param (default `admin_config`)
+/// - `caller`: the signing caller param (default `caller`)
+/// - `offset`: the slot's byte offset in that account (default 0)
 ///
 /// ```ignore
-/// #[require_admin]                                  // uses defaults
-/// #[require_admin(config = my_cfg, signer = owner)] // overrides both
+/// #[require_admin]                                          // uses defaults
+/// #[require_admin(admin_config = my_cfg, caller = owner)]   // overrides both
 /// ```
 ///
 /// The macro never reads `#[account(...)]`; that attribute belongs solely to

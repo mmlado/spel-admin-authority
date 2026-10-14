@@ -12,7 +12,7 @@ Single-admin authority primitive for LEZ programs. Provides a standardised way t
 
 A program adds `#[admin_authority]` at the module level and `#[require_admin]` on each instruction it wants gated. The library ships five management instructions (`admin_initialize`, `admin_transfer`, `admin_nominate`, `admin_accept`, `admin_renounce`), and the framework discovers them at compile time via metadata declared in the library's `Cargo.toml`.
 
-Status at this milestone (M2.5): the library is working, gate params are injected by the framework when a gated instruction does not declare them, and the admin slot can live either in its own Config PDA (dedicated mode, the default) or inside one of the consumer's own accounts at a byte offset (embedded mode, see below). All three reference samples pass behavioural tests.
+Gate params are injected by the framework when a gated instruction does not declare them, and the admin slot can live either in its own Config PDA (dedicated mode, the default) or inside one of the consumer's own accounts at a byte offset (embedded mode, see below). All three reference samples pass behavioural tests.
 
 ```rust
 use spel_framework::prelude::*;
@@ -94,8 +94,8 @@ Embedded mode removes one account from every gated transaction. Design record: [
 | Crate | Purpose |
 |---|---|
 | [`admin-authority`](admin-authority/) | Runtime library: `AdminConfig`, `AdminCandidate`, `AdminError`, the auth methods, and the five management instruction fns. Declares the discovery metadata. |
-| [`admin-authority-macros`](admin-authority-macros/) | Proc-macro sub-crate: `#[admin_authority]` (marker), `#[require_admin]` (injects the runtime admin check at the top of the handler body). Re-exported through `admin-authority`. |
-| [`admin-authority-sample`](admin-authority-sample/) | Reference SPEL program using both macros end to end, with declared gate params. |
+| [`admin-authority-macros`](admin-authority-macros/) | Proc-macro sub-crate: `#[admin_authority]` (marker), `#[admin_initialize]` (embedded-mode bootstrap), `#[require_admin]` (injects the runtime admin check at the top of the handler body). Re-exported through `admin-authority`. |
+| [`admin-authority-sample`](admin-authority-sample/) | Reference SPEL program using both macros end to end, with injected gate params. |
 | [`admin-authority-sample-manual`](admin-authority-sample-manual/) | Second reference program showing the manual path: no `#[admin_authority]` marker, self-elect initialize inside the consumer's own handler, hand-written transfer and renounce, fully declared gate params. |
 | [`admin-authority-sample-embedded`](admin-authority-sample-embedded/) | Third reference program: the admin slot embedded inside the consumer's own `prog_config` account at byte offset 32, bootstrapped by the consumer's initialize, management instructions retargeted by the framework. |
 
@@ -223,7 +223,7 @@ The embedded shapes are also confirmed end to end against a local LEZ v0.2.0 sta
 ## Security notes
 
 - **Initialization window.** Without a [genesis key](#genesis-key), anyone can submit `admin_initialize` until it lands and become admin, so call it immediately after deployment. Bundling with the deployment is not possible on LEZ today (deployment transactions carry no instructions). In embedded mode the same race sits on the consumer's account-creating instruction.
-- **Declared config accounts need their `pda`.** The gate trusts the config account the instruction carries. An injected `admin_config` is PDA-verified. A declared one is pinned only by its own constraint: `pda = literal("admin_config")` in dedicated mode, the embedding account's `pda` in embedded mode. Without it a caller can pass an account that names them admin, and the gate passes.
+- **Declared config accounts need their `pda`.** The gate trusts the config account the instruction carries. An injected `admin_config` is PDA-verified. A declared one is pinned only by its own constraint: `pda = literal("admin_config")` in dedicated mode, the embedding account's `pda` in embedded mode. Without it a caller can pass an account that names them admin, and the gate passes. A module without the `#[admin_authority]` marker gets no injection and no framework check, so there the consumer must declare `admin_config` with `pda = literal("admin_config")` itself, as `admin-authority-sample-manual` does.
 - **Reading the config yourself.** Plain Rust that reads a config the dispatcher has not pinned should use `AdminConfig::from_owned_account` or `from_owned_account_at`, which refuse an account another program owns (`ConfigNotOwned`). They check the owner, not the address, so a `pda` constraint is still the stronger pin.
 - **Renounce is terminal.** `admin_renounce` writes `AccountId::default()` and that is the end. No recovery path by design.
 - **PDA admins via CPI.** A program-owned PDA can be the admin. The owning program calls the gated instruction via a chained_call and declares its admin PDA in `caller-pda-seeds`; LEZ propagates `is_authorized` to the callee. See the lifecycle doc.

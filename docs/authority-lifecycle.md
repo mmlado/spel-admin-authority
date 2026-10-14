@@ -2,8 +2,6 @@
 
 How `AdminConfig` moves between states over a program's lifetime, what each transition validates, and which guarantees the library provides.
 
-> Status at M1: this document specifies the target behavior. The validation and transition logic it describes (`AdminCandidate::validate_with_account`, the method bodies behind each transition) lands in M2; at this milestone the instruction fns are stubs.
-
 ## State machine
 
 ```
@@ -49,7 +47,7 @@ The two-step handover moves the admin without leaving Initialized:
 
 **Initialized.** The Config PDA exists and `admin` holds the current admin's `AccountId`. Every `#[require_admin]`-gated instruction reads this value to authorize the caller.
 
-**Renounced.** The Config PDA exists but `admin` is `AccountId::default()`. This is a terminal state. All gated instructions reject with `AdminError::Renounced`, and `admin_transfer` and `admin_renounce` both fail.
+**Renounced.** The Config PDA exists but `admin` is `AccountId::default()`. This is a terminal state. All gated instructions reject with `AdminError::Renounced`, and `admin_transfer`, `admin_nominate`, `admin_accept` and `admin_renounce` all fail.
 
 ## Transitions
 
@@ -75,7 +73,7 @@ Initialized → Initialized (new admin)
 
 **Inputs:** `caller: AccountWithMetadata` (the current admin, signing), `new_account: AccountWithMetadata`, `candidate: AdminCandidate`.
 
-**Validations:** the config must not be Renounced, `caller.account_id` must equal the stored `admin`, `caller.is_authorized` must be true, and `AdminCandidate::validate_with_account(new_account)` must succeed (either a co-signed signer or a program-owned PDA whose address matches the derived one). A candidate resolving to the default `AccountId` is rejected as `InvalidCandidate`: that value is the renounced sentinel, and installing it would be a silent renounce.
+**Validations:** the config must not be Renounced, `caller.account_id` must equal the stored `admin`, `caller.is_authorized` must be true, and `AdminCandidate::validate(new_account)` must succeed (either a co-signed signer or a program-owned PDA whose address matches the derived one). A candidate resolving to the default `AccountId` is rejected as `InvalidCandidate`: that value is the renounced sentinel, and installing it would be a silent renounce.
 
 **Effect:** installs the new admin and clears any pending nominee.
 
@@ -133,17 +131,17 @@ Two states have empty-looking config slots in different ways. Uninitialized mean
 | Initialized | non-empty | non-default |
 | Renounced | non-empty | `AccountId::default()` |
 
-`AdminConfig::assert_admin` discriminates in order:
+`AdminConfig::decode` and `decode_at` handle the first case: empty data returns `AdminError::NotInitialized`, malformed data `AdminError::DecodingFailed`. `AdminConfig::assert_admin` then works on the decoded config and checks in order:
 
-1. If `account.data` is empty, return `AdminError::NotInitialized`.
-2. If decode succeeds and `admin == AccountId::default()`, return `AdminError::Renounced`.
-3. Otherwise compare `signer.account_id` to `admin`.
+1. If `admin == AccountId::default()`, return `AdminError::Renounced`.
+2. If `signer.is_authorized` is false, return `AdminError::MissingSignature`.
+3. If `signer.account_id` differs from `admin`, return `AdminError::NotAdmin`.
 
 The two error variants are deliberately separate because a consumer may want different UX for each. "You haven't called init yet" is a recoverable mistake; "Admin renounced" is permanent.
 
 ## Reinit rejection
 
-The Config PDA is created with `#[account(init)]`. LEZ's `validate_execution` rule rejects any post-state where the pre-account was already non-default but the instruction declared `init`. So once `admin_initialize` succeeds, no second call can succeed, even after renounce. The PDA address is fixed at `(program_id, "admin_config")`, so there is no second address to initialize.
+The Config PDA is created with `#[account(init)]`. The framework's validation refuses an `init` account that is not `Account::default()` before the handler runs, so once `admin_initialize` succeeds, no second call can succeed, even after renounce. The PDA address is fixed at `(program_id, "admin_config")`, so there is no second address to initialize.
 
 ## Signer validation
 

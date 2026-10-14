@@ -33,6 +33,8 @@ jobs:
         run: cargo clippy --workspace --all-targets
       - name: Tests, IDL pins included
         run: RISC0_DEV_MODE=1 cargo test --workspace
+      - name: Tests with a genesis key
+        run: SPEL_ADMIN_GENESIS=0101010101010101010101010101010101010101010101010101010101010101 RISC0_DEV_MODE=1 cargo test -p admin-authority --test lez_rules
 
   dry-run:
     name: Dry-run byte compare
