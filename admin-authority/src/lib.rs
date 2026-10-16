@@ -19,6 +19,16 @@ pub use genesis::*;
 
 extern crate self as admin_authority;
 
+/// Names of the instructions this crate adds to a program, for extensions
+/// that list them in their own manifest, such as an exempt list.
+pub const INSTRUCTIONS: [&str; 5] = [
+    "admin_initialize",
+    "admin_transfer",
+    "admin_renounce",
+    "admin_nominate",
+    "admin_accept",
+];
+
 /// Creates the admin Config PDA and installs the caller as admin
 /// (self-election).
 ///
@@ -176,6 +186,29 @@ mod tests {
                 ("require_admin".to_string(), vec!["admin_config", "caller"]),
             ],
             "manifest inject accounts drifted from the wrapper's kwarg set"
+        );
+    }
+
+    #[test]
+    fn instructions_const_lists_every_instruction() {
+        let mut lines = include_str!("lib.rs").lines().map(str::trim);
+        let mut found = Vec::new();
+        while let Some(line) = lines.next() {
+            if line == "#[instruction]" {
+                let name = lines
+                    .find(|l| !l.starts_with("#["))
+                    .and_then(|item| item.strip_prefix("pub fn "))
+                    .and_then(|rest| rest.split('(').next())
+                    .expect("#[instruction] must mark a `pub fn`");
+                found.push(name);
+            }
+        }
+        found.sort_unstable();
+        let mut declared = INSTRUCTIONS.to_vec();
+        declared.sort_unstable();
+        assert_eq!(
+            found, declared,
+            "INSTRUCTIONS drifted from the #[instruction] fns"
         );
     }
 }
