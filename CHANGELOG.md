@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `INSTRUCTIONS`, the names of the five management instructions, for extensions that list them in their own manifest.
+
 ## [0.2.0] - 2026-10-13
 
 ### Added
